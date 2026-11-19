@@ -1,0 +1,10 @@
+build/
+out/
+profiles/
+*.ncu-rep
+*.nsys-rep
+.venv/
+__pycache__/
+bench/results/
+bench/circuits/
+tests/failures/
