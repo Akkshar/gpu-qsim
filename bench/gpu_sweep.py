@@ -43,19 +43,20 @@ def spread_qubits(t: int, n: int, k: int) -> list[int]:
     raise ValueError(f"cannot pick {k} distinct qubits from {n}")
 
 
-def op_line(kind: str, t: int, n: int) -> str:
+def op_line(kind: str, t: int, n: int, consecutive: bool = False) -> str:
     if kind == "h":
         return f"h {t}"
     if kind == "cx":
         return f"cx {(t + n // 2) % n} {t}"  # control far away, target t
     if kind.startswith("mat"):
         k = int(kind[3:])
-        return mat_text(k, spread_qubits(t, n, k))
+        qs = [(t + i) % n for i in range(k)] if consecutive else spread_qubits(t, n, k)
+        return mat_text(k, qs)
     raise ValueError(kind)
 
 
-def run(path: Path, precision: str, reps: int) -> tuple[float, float]:
-    out = subprocess.run([str(EXE), str(path), "--gpu", f"--{precision}", "--reps", str(reps)],
+def run(path: Path, precision: str, reps: int, kernel: str = "auto") -> tuple[float, float]:
+    out = subprocess.run([str(EXE), str(path), "--gpu", f"--{precision}", "--reps", str(reps), "--kernel", kernel],
                          capture_output=True, text=True, check=True).stdout
     m = re.search(r"per op ([\d.]+) ms\s+bandwidth ([\d.]+) GB/s", out)
     if not m:
@@ -71,13 +72,17 @@ def main() -> int:
     ap.add_argument("--ops", default="h,cx,mat2,mat3")
     ap.add_argument("--targets", default=None, help="comma-separated; default: every qubit")
     ap.add_argument("--count", type=int, default=64, help="ops per circuit")
+    ap.add_argument("--kernel", choices=["auto", "shuffle", "direct"], default="auto")
+    ap.add_argument("--consecutive", action="store_true",
+                    help="matK targets t, t+1, ..., t+K-1 instead of spread out (fused blocks look like this)")
     args = ap.parse_args()
 
     n = args.qubits
     kinds = args.ops.split(",")
     targets = [int(x) for x in args.targets.split(",")] if args.targets else list(range(n))
 
-    print(f"{n} qubits, {args.precision}, {args.count} ops per run, median of {args.reps}; "
+    layout = "consecutive targets" if args.consecutive else "spread targets"
+    print(f"{n} qubits, {args.precision}, kernel {args.kernel}, {layout}, {args.count} ops per run, median of {args.reps}; "
           f"bandwidth = bytes of touched amplitudes, read+write; % of {CEILING_GBS:.0f} GB/s")
     print()
     print("| target | " + " | ".join(f"{k} ms/op | {k} %" for k in kinds) + " |")
@@ -87,9 +92,9 @@ def main() -> int:
             cells = []
             for kind in kinds:
                 path = Path(tmp) / f"{kind}_{t}.qc"
-                line = op_line(kind, t, n)
+                line = op_line(kind, t, n, args.consecutive)
                 path.write_text(f"qubits {n}\n" + (line + "\n") * args.count)
-                ms, gbs = run(path, args.precision, args.reps)
+                ms, gbs = run(path, args.precision, args.reps, args.kernel)
                 cells += [f"{ms:.3f}", f"{100 * gbs / CEILING_GBS:.0f}%"]
             print(f"| {t} | " + " | ".join(cells) + " |", flush=True)
     return 0

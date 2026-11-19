@@ -141,6 +141,8 @@ def cmd_check(args) -> int:
                 cmd.append("--gpu")
             if args.fuse:
                 cmd += ["--fuse", str(args.fuse)]
+            if args.backend == "gpu":
+                cmd += ["--kernel", args.kernel]
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             if proc.returncode != 0:
                 err = proc.stderr.strip()
@@ -165,7 +167,7 @@ def cmd_check(args) -> int:
         path.write_text("\n".join(lines) + "\n")
         print(f"FAIL circuit {i}: {n} qubits, {depth} ops: {why}\n     saved to {path}")
     passed = args.circuits - len(failures)
-    fused = f", fuse {args.fuse}" if args.fuse else ""
+    fused = (f", fuse {args.fuse}" if args.fuse else "") + (f", kernel {args.kernel}" if args.backend == "gpu" else "")
     print(f"{passed}/{args.circuits} passed ({args.backend}, {args.precision}{fused}, seed {args.seed}); "
           f"worst max |amp diff| {worst:.2e}")
     return 0 if not failures else 1
@@ -193,6 +195,7 @@ def main() -> int:
     c.add_argument("--seed", type=int, default=1)
     c.add_argument("--backend", choices=["cpu", "gpu"], default="cpu")
     c.add_argument("--fuse", type=int, default=0, help="pass --fuse K to qsim_cli (0 = off)")
+    c.add_argument("--kernel", choices=["auto", "shuffle", "direct"], default="auto", help="GPU kernel for 2-5 target ops")
     c.add_argument("--exe", default=str(DEFAULT_EXE))
 
     e = sub.add_parser("emit", help="write a random circuit file")

@@ -27,6 +27,75 @@ CMake 4.4.2, Visual Studio generator, sm_86. **On battery, Windows "Silent" prof
 
 **Superseded** by the on-AC run above (358 GB/s).
 
+## M3.3: low-qubit blocks — shared-memory tiles (failed), warp shuffles (kept)
+
+**Problem (from M3.2):** dense blocks whose targets are the lowest qubits run far below the floor
+with the direct kernel (one thread per group): mat4 {0,1,2,3} 56%, mat5 {0..4} 46%.
+
+### Attempt 1: shared-memory tiles — slower, removed
+A block loads a 4096-amplitude tile (low qubits contiguous + high targets) with coalesced loads,
+applies the op in shared memory, writes back coalesced. Correct (all tests + Qiskit), but 28 q f32:
+
+| consecutive targets from t | mat2 | mat3 | mat4 | mat5 |
+|---|---|---|---|---|
+| t = 0, direct → tiled | 95% → 92% | 86% → 74% | 56% → 56% | 46% → 38% |
+| t = 12, direct → tiled | 100% → 81% | 98% → 78% | 98% → 63% | 66% → 40% |
+
+Two reasons: (1) within the tile each thread still owns 2^k contiguous elements, so the 32 lanes
+hit the same shared-memory banks: the stride problem just moves from L1 to shared memory; (2) the
+load → sync → compute → sync → store phases with 2–3 blocks per SM cost ~20% even when targets are
+high. Lesson: staging through shared memory doesn't help if the access pattern inside it is the same.
+
+### Attempt 2: one lane per amplitude + warp shuffles — kept for packed low targets
+`apply_kt_shfl<T,K>`: a group's 2^k members are 2^k adjacent lanes of one warp. Each lane loads one
+amplitude (for low targets: consecutive lanes, consecutive addresses), gets the others with
+`__shfl_sync`, and multiplies by its own matrix row held in registers for the whole kernel. No shared
+memory, no barriers; also handles controls. 38–95 registers (f32), no spills.
+
+28 q f32, % of ceiling (direct → shuffle):
+
+| consecutive targets from t | mat2 | mat3 | mat4 | mat5 |
+|---|---|---|---|---|
+| t = 0 | 95 → 98% | 86 → **97%** | 56 → **97%** | 46 → 51% |
+| t = 1 | 99 → 98% | 97 → 97% | 81 → **94%** | 76 → 48% |
+| t = 2 | 100 → 98% | 87 → 96% | 85 → 85% | 88 → 43% |
+| t ≥ 4 | ~100 → 70–93% | ~99 → 35–74% | ~98 → 34–58% | 61–74 → 21–32% |
+| spread targets | 97–100 → 70–95% | 80–100 → 35–69% | 69–98 → 35–52% | 54–63 → 23–33% |
+
+Shuffle wins only when the targets are packed into the lowest bits; once they spread upwards, a
+group's members are far apart and its loads scatter. mat5 never really wins (64 shuffles per
+amplitude). Low controls aren't helped either (cswap c=0: 47% → 49%).
+
+**Auto rule** (`use_shuffle`): shuffle iff the highest target ≤ k (k = 5: exactly {0..4}).
+The sweep alone suggested "≤ k + 1", but in-circuit profiling (new `qsim_cli --profile-ops`, which
+times every op and groups by shape) showed fused {2,3,4,5} at 14.2 ms direct vs 18.4 ms shuffle,
+while {0,1,2,3} went **23.7 → 14.8 ms**. Isolated sweeps of 32 identical ops don't fully predict
+in-circuit behaviour; check both.
+
+### Benchmarking lesson: thermal drift
+Back-to-back runs drift ~10% on this laptop as it heats: in one profile, direct-kernel blocks whose
+code hadn't changed got 10% slower in the second run, and QFT-28 K=5 measured 1374 ms early in the
+session and 1700 ms after hours of benchmarking. `fusion_bench.py --ab A,B` now alternates the two
+settings run by run (median of 5 each), so both see the same conditions. Use it for every A/B claim.
+
+**Result**, interleaved A/B, 28 q f32, direct vs auto (with shuffle):
+
+| circuit | K=3 | K=4 | K=5 |
+|---|---|---|---|
+| layered | **−5.5%** (4342 → 4102 ms) | **−7.6%** (5077 → 4690) | +1.9% |
+| GHZ | 0% | −3.4% | **−6.0%** |
+| QFT | 0% | −0.6% | +0.7% |
+| random | +0.1% | −0.2% | −2.0% |
+
+The worst block is fixed (23.7 → 14.8 ms), but only ~1 fused block in 14 sits on the lowest qubits,
+so whole circuits gain 0–8%. Correctness: 60/60 Catch2 cases (new: shuffle and direct forced on
+4–17 qubit states, every target layout, controlled multi-target ops); qiskit_check GPU f64 fuse 4
+200/200 (7.9e-16), f32 forced shuffle 200/200 (2.6e-7).
+
+**Still open:** mat5 on low qubits (~50%), {2..5}-style blocks (~85%), low-qubit controls (48%).
+Bigger remaining lever: fewer passes (fusion that can reorder commuting gates), or applying several
+fused blocks per pass over memory.
+
 ## M3.2: gate fusion
 
 **Pass** (`src/fusion/fuse.cpp`, `qsim_cli --fuse K`): greedy and order-preserving. Walk the ops, keep

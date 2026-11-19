@@ -139,6 +139,41 @@ __global__ void apply_kt_smem(cplx<T>* __restrict__ a, std::uint64_t groups, Fix
   }
 }
 
+// ---- One lane per amplitude, warp shuffles (M3.3) ----
+//
+// The direct kernels give each thread a whole group of 2^k amplitudes. When the targets include low
+// qubits, a group is a run of 2^k contiguous amplitudes, so the 32 lanes of a warp sit 2^k * 8 bytes
+// apart and every load instruction pulls 32 different lines through L1 (which then thrashes).
+//
+// Here a group's 2^k members live in 2^k adjacent lanes instead (k <= 5, so a group fits in a warp).
+// Lane r of a group loads member r (for low targets: consecutive lanes, consecutive addresses), gets
+// the other members' values with __shfl_sync (registers only, no shared memory, no __syncthreads),
+// and computes output r with its own matrix row, which it keeps in registers for the whole kernel:
+// the grid-stride step is a multiple of 2^k, so a lane's member index never changes.
+// Requires >= 32 amplitudes touched (n >= 5) so every warp is full when it shuffles.
+template <class T, int K>
+__global__ void apply_kt_shfl(cplx<T>* __restrict__ a, std::uint64_t total, FixedBits f,
+                              const __grid_constant__ DenseOp<T, K> op) {
+  constexpr int D = 1 << K;
+  const int r = static_cast<int>(threadIdx.x) & (D - 1);
+  cplx<T> row[D];
+#pragma unroll
+  for (int c = 0; c < D; ++c) row[c] = op.m[r * D + c];
+  const std::uint64_t roff = op.offs[r];
+
+  GRID_STRIDE(t, total) {  // total and the stride are multiples of 32: whole warps stay together
+    const std::uint64_t idx = group_base(t >> K, f) | roff;
+    const cplx<T> v = a[idx];
+    cplx<T> s{T(0), T(0)};
+#pragma unroll
+    for (int c = 0; c < D; ++c) {
+      const cplx<T> x{__shfl_sync(0xffffffffu, v.re, c, D), __shfl_sync(0xffffffffu, v.im, c, D)};
+      s = cadd(s, cmul(row[c], x));
+    }
+    a[idx] = s;
+  }
+}
+
 // Any k up to 6, k known only at run time (M2 version, now only used for k = 6). Matrix and member
 // offsets come from global memory; in[] is a 64-entry local-memory array (see BENCH.md, M3).
 template <class T>
@@ -214,6 +249,16 @@ void launch_dense(cplx<T>* amps, std::uint64_t groups, const FixedBits& f, const
   }
 }
 
+template <class T, int K>
+void launch_shfl(cplx<T>* amps, std::uint64_t groups, const FixedBits& f, const Op& op, unsigned cap) {
+  constexpr int D = 1 << K;
+  DenseOp<T, K> d{};
+  for (int i = 0; i < D * D; ++i) d.m[i] = {T(op.matrix[i].real()), T(op.matrix[i].imag())};
+  member_offsets(op, d.offs);
+  const std::uint64_t total = groups << K;  // one thread per touched amplitude
+  apply_kt_shfl<T, K><<<grid_for(total, cap), kBlock>>>(amps, total, f, d);
+}
+
 }  // namespace
 
 template <class T>
@@ -265,6 +310,23 @@ void CudaStateVector<T>::synchronize() const {
   QSIM_CUDA(cudaDeviceSynchronize());
 }
 
+// Auto rule for 2..5-target ops, from the 28-qubit f32 sweeps in BENCH.md (M3.3): the shuffle kernel
+// wins when the targets are packed into the lowest bits (a group is then a short contiguous run, which
+// is the direct kernel's worst case and the shuffle kernel's best: {0,1,2,3} 56% -> 97%). As soon as
+// targets spread upwards, a group's members are far apart, the shuffle kernel's loads scatter, and
+// the direct kernel (~100% there) wins. k = 5 only gains on exactly {0..4} (64 shuffles/amplitude).
+// In-circuit profiling (--profile-ops, layered circuit) moved the cut-off down from "top <= k + 1":
+// fused {2,3,4,5} ran 14.2 ms direct vs 18.4 ms shuffle, while {0,1,2,3} went 23.7 -> 14.8 ms.
+template <class T>
+bool CudaStateVector<T>::use_shuffle(const Op& op) const {
+  if (n_ - static_cast<int>(op.controls.size()) < 5) return false;  // needs >= 32 touched amplitudes
+  if (mt_kernel_ == MultiTargetKernel::Direct) return false;
+  if (mt_kernel_ == MultiTargetKernel::Shuffle) return true;
+  const int k = op.arity();
+  const int top = *std::max_element(op.targets.begin(), op.targets.end());
+  return top <= (k == 5 ? k - 1 : k);
+}
+
 template <class T>
 void CudaStateVector<T>::apply(const Op& op) {
   const int k = op.arity();
@@ -287,6 +349,13 @@ void CudaStateVector<T>::apply(const Op& op) {
   if (k == 1) {
     apply_1t<T><<<grid, kBlock>>>(amps, groups, f, std::uint64_t{1} << op.targets[0], conv(0), conv(1),
                                   conv(2), conv(3));
+  } else if (k <= 5 && use_shuffle(op)) {
+    switch (k) {
+      case 2: launch_shfl<T, 2>(amps, groups, f, op, grid_cap_); break;
+      case 3: launch_shfl<T, 3>(amps, groups, f, op, grid_cap_); break;
+      case 4: launch_shfl<T, 4>(amps, groups, f, op, grid_cap_); break;
+      default: launch_shfl<T, 5>(amps, groups, f, op, grid_cap_); break;
+    }
   } else if (k <= 5) {
     switch (k) {
       case 2: launch_dense<T, 2>(amps, groups, f, op, grid); break;

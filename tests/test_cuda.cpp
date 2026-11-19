@@ -78,11 +78,12 @@ std::string random_circuit(int n, int depth, unsigned seed) {
 }
 
 template <class T>
-double max_diff_vs_cpu(const std::string& text) {
+double max_diff_vs_cpu(const std::string& text, qsim::MultiTargetKernel mode = qsim::MultiTargetKernel::Auto) {
   const auto c = qsim::parse_circuit(text);
   CpuStateVector<double> ref(c.num_qubits);
   ref.run(c);
   CudaStateVector<T> gpu(c.num_qubits);
+  gpu.set_multi_target_kernel(mode);
   gpu.run(c);
   const auto got = gpu.download();
   REQUIRE(got.size() == ref.size());
@@ -147,6 +148,37 @@ TEMPLATE_TEST_CASE("GPU matches CPU: every matrix size, scattered and controlled
   text += random_mat(5, {9, 8, 7, 6, 5}, rng) + "\n";  // all high qubits, descending
   text += "cswap 0 9 5\ncswap 9 1 2\n";
   CHECK(max_diff_vs_cpu<TestType>(text) < tol<TestType>());
+}
+
+TEMPLATE_TEST_CASE("GPU shuffle and direct multi-target kernels both match CPU", "[cuda][shuffle]", float, double) {
+  using K = qsim::MultiTargetKernel;
+  const double t = std::is_same_v<TestType, float> ? 1e-4 : 1e-11;
+  std::mt19937 rng(41);
+  // From below the shuffle kernel's minimum (32 touched amplitudes; it then falls back to direct) up.
+  // Targets: all low, low and high mixed in odd orders, all high. Plus controlled 2-target ops.
+  for (int n : {4, 5, 6, 11, 12, 13, 15, 17}) {
+    std::string text = "qubits " + std::to_string(n) + "\n";
+    for (int j = 0; j < n; ++j) text += "u3 " + num(0.3 + 0.07 * j) + " 0.2 -0.4 " + std::to_string(j) + "\n";
+    const int hi = n - 1, mid = n / 2;
+    const std::vector<std::vector<int>> target_sets = {
+        {0, 1}, {1, 0}, {0, hi}, {hi, 0}, {2, 0, 1}, {0, mid, hi}, {3, 1, 2, 0}, {hi, 0, mid, 1},
+        {4, 3, 2, 1, 0}, {0, hi, 1, hi - 1, 2}, {hi, hi - 1}, {hi, hi - 1, hi - 2, hi - 3}};
+    for (const auto& ts : target_sets) {
+      std::vector<int> u(ts);
+      std::sort(u.begin(), u.end());
+      if (std::adjacent_find(u.begin(), u.end()) != u.end() || u.front() < 0 || u.back() >= n) continue;
+      text += random_mat(static_cast<int>(ts.size()), ts, rng) + "\n";
+    }
+    if (n >= 6) text += "cswap 0 1 " + std::to_string(hi) + "\ncswap " + std::to_string(hi) + " 0 2\n";
+    for (K m : {K::Shuffle, K::Direct, K::Auto}) {
+      INFO(n << " qubits, mode " << static_cast<int>(m));
+      CHECK(max_diff_vs_cpu<TestType>(text, m) < t);
+    }
+  }
+  for (unsigned seed = 1; seed <= 4; ++seed) {
+    INFO("random circuit seed " << seed);
+    CHECK(max_diff_vs_cpu<TestType>(random_circuit(14, 120, seed), K::Shuffle) < t);
+  }
 }
 
 TEMPLATE_TEST_CASE("GPU matches CPU: random circuits", "[cuda][random]", float, double) {

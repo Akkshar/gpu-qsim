@@ -63,8 +63,8 @@ def random_mix(n: int, depth: int = 200, seed: int = 7) -> list[str]:
     return lines
 
 
-def run(path: Path, precision: str, reps: int, fuse: int) -> tuple[float, int]:
-    cmd = [str(EXE), str(path), "--gpu", f"--{precision}", "--reps", str(reps)]
+def run(path: Path, precision: str, reps: int, fuse: int, kernel: str = "auto") -> tuple[float, int]:
+    cmd = [str(EXE), str(path), "--gpu", f"--{precision}", "--reps", str(reps), "--kernel", kernel]
     if fuse:
         cmd += ["--fuse", str(fuse)]
     out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
@@ -82,6 +82,10 @@ def main() -> int:
     ap.add_argument("--fuse", default="0,2,3,4,5")
     ap.add_argument("--circuits", default="qft,layered,ghz,random")
     ap.add_argument("--layers", type=int, default=20)
+    ap.add_argument("--kernel", choices=["auto", "shuffle", "direct"], default="auto")
+    ap.add_argument("--ab", default=None, metavar="KERNEL_A,KERNEL_B",
+                    help="A/B mode: alternate two kernel settings run by run (cancels thermal drift)")
+    ap.add_argument("--rounds", type=int, default=5, help="A/B mode: alternating runs per setting")
     args = ap.parse_args()
 
     n = args.qubits
@@ -90,7 +94,32 @@ def main() -> int:
     fuses = [int(x) for x in args.fuse.split(",")]
     OUT.mkdir(parents=True, exist_ok=True)
 
-    print(f"{n} qubits, {args.precision}, GPU, median of {args.reps}; ops = kernel launches after fusion")
+    if args.ab:
+        # This laptop's GPU drifts ~10% between back-to-back runs as it heats up, which is as big as
+        # the effects being compared. Alternating A, B, A, B, ... exposes both to the same conditions.
+        ka, kb = args.ab.split(",")
+        print(f"{n} qubits, {args.precision}, GPU, A/B interleaved: A = {ka}, B = {kb}, "
+              f"median of {args.rounds} alternating runs each")
+        print()
+        print(f"| circuit | K | ops | A: {ka} ms | B: {kb} ms | B vs A |")
+        print("|---|---|---|---|---|---|")
+        for name in args.circuits.split(","):
+            path = OUT / f"{name}{n}.qc"
+            path.write_text("\n".join(makers[name]()) + "\n")
+            for k in fuses:
+                ta, tb, ops = [], [], 0
+                for _ in range(args.rounds):
+                    ms, ops = run(path, args.precision, 1, k, ka)
+                    ta.append(ms)
+                    ms, _ = run(path, args.precision, 1, k, kb)
+                    tb.append(ms)
+                ma, mb = sorted(ta)[len(ta) // 2], sorted(tb)[len(tb) // 2]
+                print(f"| {name} | {k or '-'} | {ops} | {ma:.0f} | {mb:.0f} | {100 * (mb - ma) / ma:+.1f}% |",
+                      flush=True)
+        return 0
+
+    print(f"{n} qubits, {args.precision}, GPU, kernel {args.kernel}, median of {args.reps}; "
+          f"ops = kernel launches after fusion")
     print()
     print("| circuit | gates | " + " | ".join(f"K={k} ops | K={k} ms" if k else "unfused ms" for k in fuses)
           + " | best speedup |")
@@ -101,7 +130,7 @@ def main() -> int:
         path.write_text("\n".join(lines) + "\n")
         cells, base, best = [], None, None
         for k in fuses:
-            ms, ops = run(path, args.precision, args.reps, k)
+            ms, ops = run(path, args.precision, args.reps, k, args.kernel)
             if k == 0:
                 base = ms
                 cells.append(f"{ms:.0f}")
