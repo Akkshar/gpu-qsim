@@ -27,6 +27,50 @@ CMake 4.4.2, Visual Studio generator, sm_86. **On battery, Windows "Silent" prof
 
 **Superseded** by the on-AC run above (358 GB/s).
 
+## M3.2: gate fusion
+
+**Pass** (`src/fusion/fuse.cpp`, `qsim_cli --fuse K`): greedy and order-preserving. Walk the ops, keep
+adding to the current block while the union of touched qubits (targets + controls) is ≤ K, else
+close it. A block of ≥ 2 ops becomes one dense 2^q × 2^q matrix (built in double on the host by
+applying each op to the block's columns); a single-op block is emitted unchanged, so a lone cx keeps
+its control and its half-state cost. Host cost is small (QFT-28: 420 → 103 ops in a few ms).
+
+**Correctness:** 5 new [fusion] cases (fused == unfused for K = 1..6 on 8 random circuits; the block
+rules; GPU running fused circuits, f32 and f64). qiskit_check (now also with `p`/`cp`): CPU fuse 3
+200/200 (6.2e-16); GPU f64 fuse 5 200/200 (8.9e-16); GPU f32 fuse 4 200/200 (**8.2e-8**, lower than
+unfused 2.6e-7 because fused matrices are built in double); GPU f64 fuse 6, ≤ 16 q 150/150 (1.1e-15).
+
+**Results** — `bench/fusion_bench.py`, 28 q f32 GPU, median of 3, on AC. ms = whole circuit;
+ops = kernel launches after fusion.
+
+| circuit | gates | unfused | K=2 | K=3 | K=4 | K=5 | best |
+|---|---|---|---|---|---|---|---|
+| QFT (h + cp ladder + swaps) | 420 | 2793 ms | 392 ops / 2612 | 209 / 2532 | 140 / 1725 | **103 / 1472** | **1.90×** (K=5) |
+| layered (u3 on all + cz pairs, 20 layers) | 830 | 8521 | 550 / 5162 | **450 / 4371** | 275 / 5005 | 245 / 5288 | **1.95×** (K=3) |
+| GHZ | 28 | 189 | 27 / 176 | 14 / 169 | **9 / 122** | 7 / 134 | **1.55×** (K=4) |
+| random mix (far-apart qubits) | 200 | 1837 | 177 / 1565 | 145 / 1275 | **104 / 1104** | 81 / 1167 | **1.66×** (K=4) |
+
+Launch counts drop 3–4×, run time only 1.6–1.95×: fused launches cost more than the 12 ms floor
+(layered K=4: 18 ms per launch; QFT K=5: 14 ms). Bigger K stops helping (layered peaks at K=3).
+
+**Why: dense blocks on the lowest qubits are slow.** Same op, 64 copies, 28 q f32:
+
+| block targets | ms/op | % of ceiling |
+|---|---|---|
+| mat3 {0,1,2} / {12,13,14} | 14.3 / 12.2 | 84% / 98% |
+| mat4 {0,1,2,3} / {2..5} / {12..15} / {24..27} | 21.9 / 14.0 / 12.4 / 12.1 | **55%** / 85% / 97% / 99% |
+| mat5 {0..4} / {12..16} | 26.7 / 12.2 | **45%** / 98% |
+
+With targets 0..k-1 each thread's group is 2^k *contiguous* amplitudes (128–256 B in f32), so the
+32 lanes of a warp sit 128–256 B apart: every load instruction uses 8 B from each of 32 different
+lines and relies on L1 keeping them for the thread's other 2^k − 1 loads. With many warps in flight,
+L1 thrashes. Fusion makes this common: blocks are naturally on neighbouring qubits.
+
+**Next (M3.3):** stage low-qubit blocks through shared memory: a thread block loads a contiguous tile
+with fully coalesced loads, applies the matrix from shared memory, writes the tile back coalesced
+(the plan's "shared-memory blocking"; also the fix for low-qubit controls). Then a per-op timing
+mode to attribute each fused launch's cost, and a cost-aware fusion (choose K per block).
+
 ## M3.1: multi-target kernel — compile-time k, matrix in the argument block
 
 ### Found on the way: everything had been compiled for sm_75

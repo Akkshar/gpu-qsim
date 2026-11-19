@@ -24,7 +24,8 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo")
 add_library(qsim_core STATIC
   src/io/circuit_io.cpp
   src/cpu/gates.cpp
-  src/cpu/statevector.cpp)
+  src/cpu/statevector.cpp
+  src/fusion/fuse.cpp)
 target_include_directories(qsim_core PUBLIC include)
 if(MSVC)
   target_compile_options(qsim_core PRIVATE /W4 /permissive- /utf-8)
@@ -63,7 +64,8 @@ if(QSIM_BUILD_TESTS)
     tests/test_bits_gates.cpp
     tests/test_parser.cpp
     tests/test_statevector.cpp
-    tests/test_cuda.cpp)       # [cuda] tests need an NVIDIA GPU; exclude with "~[cuda]"
+    tests/test_cuda.cpp        # [cuda] tests need an NVIDIA GPU; exclude with "~[cuda]"
+    tests/test_fusion.cpp)
   target_link_libraries(qsim_tests PRIVATE qsim_core qsim_cuda Catch2::Catch2WithMain)
 
   enable_testing()

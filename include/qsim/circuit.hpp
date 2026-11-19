@@ -11,8 +11,10 @@
 // Text format (*.qc), one statement per line, '#' starts a comment:
 //   qubits 3                 first statement, required
 //   h 0                      1-qubit gates: h x y z s sdg t tdg
-//   rx 0.25 2                parameterised: rx ry rz <theta> q,  u3 <theta> <phi> <lambda> q
-//   cx 0 1                   controls come first, then targets (Qiskit order): cx cy cz ch, crz <theta> c t
+//   rx 0.25 2                parameterised: rx ry rz <theta> q,  u3 <theta> <phi> <lambda> q,
+//                            p <lambda> q  (phase gate diag(1, e^{i lambda}))
+//   cx 0 1                   controls come first, then targets (Qiskit order): cx cy cz ch,
+//                            crz <theta> c t, cp <lambda> c t
 //   swap 0 2                 ccx c1 c2 t,  cswap c t1 t2
 //   mat 1 0  re im re im re im re im      explicit matrix: mat <k> <k target qubits> <(2^k)^2 complex entries>
 

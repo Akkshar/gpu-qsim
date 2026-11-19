@@ -96,7 +96,7 @@ gpu-qsim/
 - Report the **effective bandwidth** = bytes moved / kernel time, as a % of 448 GB/s.
 - **Done when:** results match CPU (1e-5 f32 / 1e-12 f64) for every test, and the first % of peak is logged.
 
-### M3 — Optimise (weekends 2–4; the core of the project) — M3.1 multi-target kernel DONE 2026-11-20
+### M3 — Optimise (weekends 2–4; the core of the project) — M3.1 multi-target kernel DONE 2026-11-20; M3.2 gate fusion DONE 2026-11-20 (1.55–1.95×)
 Each step: hypothesis → change → `ncu` before/after → entry in BENCH.md.
 1. **Memory access per target qubit.** Sweep t = 0..n-1. Low t has pairs that are adjacent and
    interleaved; fix with vectorised loads (float4 / two pairs per thread). Goal: a flat line across t.

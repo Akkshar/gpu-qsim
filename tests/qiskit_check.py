@@ -2,7 +2,7 @@
 
   check: random circuits -> Qiskit Statevector (ground truth) vs `qsim_cli --dump`, amplitude by amplitude
       python tests/qiskit_check.py check [--circuits 200] [--max-qubits 12] [--max-depth 40]
-                                         [--precision f64|f32] [--backend cpu|gpu] [--seed 1]
+                                         [--precision f64|f32] [--backend cpu|gpu] [--fuse K] [--seed 1]
                                          [--exe path/to/qsim_cli]
   emit: write one random circuit to a .qc file (no Qiskit simulation, so any size works)
       python tests/qiskit_check.py emit --qubits 24 --depth 200 --seed 7 --out bench/circuits/rand24.qc
@@ -28,7 +28,7 @@ DEFAULT_EXE = ROOT / "build" / "Release" / ("qsim_cli.exe" if sys.platform == "w
 FAIL_DIR = ROOT / "tests" / "failures"
 
 FIXED_1Q = ["h", "x", "y", "z", "s", "sdg", "t", "tdg"]
-ROT_1Q = ["rx", "ry", "rz"]
+ROT_1Q = ["rx", "ry", "rz", "p"]
 CTRL_1Q = ["cx", "cy", "cz", "ch"]
 
 
@@ -76,11 +76,12 @@ def random_ops(n: int, depth: int, rng: random.Random, with_qiskit: bool):
             if qc is not None:
                 getattr(qc, g)(c, t)
         elif kind == "crz":
+            g = rng.choice(["crz", "cp"])
             c, t = rng.sample(range(n), 2)
             a = rng.uniform(-2 * math.pi, 2 * math.pi)
-            lines.append(f"crz {num(a)} {c} {t}")
+            lines.append(f"{g} {num(a)} {c} {t}")
             if qc is not None:
-                qc.crz(a, c, t)
+                getattr(qc, g)(a, c, t)
         elif kind == "swap":
             a, b = rng.sample(range(n), 2)
             lines.append(f"swap {a} {b}")
@@ -138,6 +139,8 @@ def cmd_check(args) -> int:
             cmd = [str(exe), str(qc_path), f"--{args.precision}", "--dump", str(dump)]
             if args.backend == "gpu":
                 cmd.append("--gpu")
+            if args.fuse:
+                cmd += ["--fuse", str(args.fuse)]
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             if proc.returncode != 0:
                 err = proc.stderr.strip()
@@ -162,7 +165,8 @@ def cmd_check(args) -> int:
         path.write_text("\n".join(lines) + "\n")
         print(f"FAIL circuit {i}: {n} qubits, {depth} ops: {why}\n     saved to {path}")
     passed = args.circuits - len(failures)
-    print(f"{passed}/{args.circuits} passed ({args.backend}, {args.precision}, seed {args.seed}); "
+    fused = f", fuse {args.fuse}" if args.fuse else ""
+    print(f"{passed}/{args.circuits} passed ({args.backend}, {args.precision}{fused}, seed {args.seed}); "
           f"worst max |amp diff| {worst:.2e}")
     return 0 if not failures else 1
 
@@ -188,6 +192,7 @@ def main() -> int:
     c.add_argument("--precision", choices=["f64", "f32"], default="f64")
     c.add_argument("--seed", type=int, default=1)
     c.add_argument("--backend", choices=["cpu", "gpu"], default="cpu")
+    c.add_argument("--fuse", type=int, default=0, help="pass --fuse K to qsim_cli (0 = off)")
     c.add_argument("--exe", default=str(DEFAULT_EXE))
 
     e = sub.add_parser("emit", help="write a random circuit file")

@@ -25,6 +25,7 @@ const std::unordered_map<std::string, GateSpec>& gate_table() {
       {"h", {0, 1, 0}},    {"x", {0, 1, 0}},    {"y", {0, 1, 0}},   {"z", {0, 1, 0}},
       {"s", {0, 1, 0}},    {"sdg", {0, 1, 0}},  {"t", {0, 1, 0}},   {"tdg", {0, 1, 0}},
       {"rx", {1, 1, 0}},   {"ry", {1, 1, 0}},   {"rz", {1, 1, 0}},  {"u3", {3, 1, 0}},
+      {"p", {1, 1, 0}},    {"cp", {1, 1, 1}},
       {"swap", {0, 2, 0}}, {"cx", {0, 1, 1}},   {"cy", {0, 1, 1}},  {"cz", {0, 1, 1}},
       {"ch", {0, 1, 1}},   {"crz", {1, 1, 1}},  {"ccx", {0, 1, 2}}, {"cswap", {0, 2, 1}},
   };
@@ -45,6 +46,7 @@ Matrix base_matrix(const std::string& base, const std::vector<double>& p) {
   if (base == "ry") return RY(p[0]);
   if (base == "rz") return RZ(p[0]);
   if (base == "u3") return U3(p[0], p[1], p[2]);
+  if (base == "p") return U3(0, 0, p[0]);  // phase gate diag(1, e^{i lambda}), as in Qiskit
   if (base == "swap") return SWAP();
   throw std::logic_error("parser: no matrix for gate '" + base + "'");
 }

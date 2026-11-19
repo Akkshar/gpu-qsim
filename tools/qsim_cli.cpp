@@ -1,6 +1,6 @@
 // qsim_cli — run a circuit file on the CPU reference or the GPU backend.
 //
-//   qsim_cli <circuit.qc> [--gpu] [--f32 | --f64] [--reps N] [--dump out.bin]
+//   qsim_cli <circuit.qc> [--gpu] [--f32 | --f64] [--fuse K] [--reps N] [--dump out.bin]
 //
 // --dump writes the final state as raw little-endian complex128 (2^n values, real then imaginary),
 // which tests/qiskit_check.py compares against Qiskit. Timing is the median over --reps runs; on the
@@ -18,6 +18,7 @@
 #include "qsim/circuit.hpp"
 #include "qsim/cpu_statevector.hpp"
 #include "qsim/cuda_statevector.hpp"
+#include "qsim/fusion.hpp"
 
 namespace {
 
@@ -36,7 +37,7 @@ std::vector<std::complex<T>> amplitudes(const qsim::CudaStateVector<T>& sv) {
 }
 
 template <class SV>
-void run(const qsim::Circuit& c, int reps, const char* dump, bool gpu) {
+void run(const qsim::Circuit& c, int reps, const char* dump, bool gpu, std::size_t input_ops) {
   using amp_t = typename SV::amp_t;
   SV sv(c.num_qubits);
   std::vector<double> ms;
@@ -66,6 +67,8 @@ void run(const qsim::Circuit& c, int reps, const char* dump, bool gpu) {
     std::printf("per op %.4f ms   bandwidth %.1f GB/s (amplitudes touched, read+write)", per_op, gbs);
     if (gpu) std::printf("   (%.0f%% of the %.0f GB/s ceiling)", 100.0 * gbs / kGpuCeilingGBs, kGpuCeilingGBs);
     std::printf("\n");
+    if (input_ops != c.ops.size() && input_ops > 0)
+      std::printf("per input op %.4f ms (%zu ops before fusion)\n", med / double(input_ops), input_ops);
   }
 
   if (dump) {
@@ -80,7 +83,9 @@ void run(const qsim::Circuit& c, int reps, const char* dump, bool gpu) {
 }
 
 int usage() {
-  std::fprintf(stderr, "usage: qsim_cli <circuit.qc> [--gpu] [--f32 | --f64] [--reps N] [--dump out.bin]\n");
+  std::fprintf(stderr,
+               "usage: qsim_cli <circuit.qc> [--gpu] [--f32 | --f64] [--fuse K] [--reps N] [--dump out.bin]\n"
+               "  --fuse K   merge consecutive gates into dense blocks of at most K qubits (1..6)\n");
   return 2;
 }
 
@@ -90,11 +95,12 @@ int main(int argc, char** argv) {
   const char* path = nullptr;
   const char* dump = nullptr;
   bool f32 = false, gpu = false;
-  int reps = 1;
+  int reps = 1, fuse = 0;
   for (int i = 1; i < argc; ++i) {
     if (!std::strcmp(argv[i], "--f32")) f32 = true;
     else if (!std::strcmp(argv[i], "--f64")) f32 = false;
     else if (!std::strcmp(argv[i], "--gpu")) gpu = true;
+    else if (!std::strcmp(argv[i], "--fuse") && i + 1 < argc) fuse = std::atoi(argv[++i]);
     else if (!std::strcmp(argv[i], "--reps") && i + 1 < argc) reps = std::max(1, std::atoi(argv[++i]));
     else if (!std::strcmp(argv[i], "--dump") && i + 1 < argc) dump = argv[++i];
     else if (argv[i][0] == '-') return usage();
@@ -104,13 +110,21 @@ int main(int argc, char** argv) {
   if (!path) return usage();
 
   try {
-    const qsim::Circuit c = qsim::load_circuit(path);
+    qsim::Circuit c = qsim::load_circuit(path);
+    const std::size_t input_ops = c.ops.size();
+    if (fuse > 0) {
+      const auto t0 = std::chrono::steady_clock::now();
+      c = qsim::fuse_circuit(c, fuse);
+      const auto t1 = std::chrono::steady_clock::now();
+      std::printf("fusion %zu ops -> %zu ops (blocks of <= %d qubits), %.2f ms on the host\n", input_ops,
+                  c.ops.size(), fuse, std::chrono::duration<double, std::milli>(t1 - t0).count());
+    }
     if (gpu) {
-      if (f32) run<qsim::CudaStateVector<float>>(c, reps, dump, true);
-      else run<qsim::CudaStateVector<double>>(c, reps, dump, true);
+      if (f32) run<qsim::CudaStateVector<float>>(c, reps, dump, true, input_ops);
+      else run<qsim::CudaStateVector<double>>(c, reps, dump, true, input_ops);
     } else {
-      if (f32) run<qsim::CpuStateVector<float>>(c, reps, dump, false);
-      else run<qsim::CpuStateVector<double>>(c, reps, dump, false);
+      if (f32) run<qsim::CpuStateVector<float>>(c, reps, dump, false, input_ops);
+      else run<qsim::CpuStateVector<double>>(c, reps, dump, false, input_ops);
     }
   } catch (const std::exception& e) {
     std::fprintf(stderr, "error: %s\n", e.what());
