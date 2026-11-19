@@ -82,8 +82,65 @@ __global__ void apply_1t(cplx<T>* __restrict__ a, std::uint64_t groups, FixedBit
   }
 }
 
-// k targets: each thread owns one group of 2^k amplitudes. Matrix and member offsets come from
-// global memory (identical for every thread, so they stay hot in cache).
+// k = 2..5 targets, k known at compile time (M3). Loops fully unroll, so in[] lives in registers
+// instead of a local-memory stack array, and every matrix index is a constant: the matrix and member
+// offsets travel in the kernel's argument block (constant bank), read by all threads of a warp at
+// once as a broadcast. __grid_constant__ stops the compiler copying the big argument to local memory.
+// Argument size: k=5 in double is 32*32*16 + 32*8 = 16.6 KB, inside the 32 KB limit (CUDA 12.1+, sm_70+).
+template <class T, int K>
+struct DenseOp {
+  cplx<T> m[(1 << K) * (1 << K)];  // row-major, already converted to T
+  std::uint64_t offs[1 << K];      // member r of a group sits at base | offs[r]
+};
+
+template <class T, int K>
+__global__ void apply_kt_fixed(cplx<T>* __restrict__ a, std::uint64_t groups, FixedBits f,
+                               const __grid_constant__ DenseOp<T, K> op) {
+  constexpr int D = 1 << K;
+  GRID_STRIDE(g, groups) {
+    const std::uint64_t base = group_base(g, f);
+    cplx<T> in[D];
+#pragma unroll
+    for (int r = 0; r < D; ++r) in[r] = a[base | op.offs[r]];
+#pragma unroll
+    for (int r = 0; r < D; ++r) {
+      cplx<T> s{T(0), T(0)};
+#pragma unroll
+      for (int c = 0; c < D; ++c) s = cadd(s, cmul(op.m[r * D + c], in[c]));
+      a[base | op.offs[r]] = s;
+    }
+  }
+}
+
+// Same as apply_kt_fixed, but each block first copies the matrix into shared memory. For k = 5 the
+// matrix (8 KB in f32, 16 KB in f64) is larger than the per-SM constant cache, so constant-bank
+// reads keep missing; a shared-memory read where all lanes use the same address is a broadcast.
+template <class T, int K>
+__global__ void apply_kt_smem(cplx<T>* __restrict__ a, std::uint64_t groups, FixedBits f,
+                              const __grid_constant__ DenseOp<T, K> op) {
+  constexpr int D = 1 << K;
+  __shared__ cplx<T> m[D * D];
+  for (int i = threadIdx.x; i < D * D; i += blockDim.x) m[i] = op.m[i];
+  __syncthreads();
+  GRID_STRIDE(g, groups) {
+    const std::uint64_t base = group_base(g, f);
+    cplx<T> in[D];
+#pragma unroll
+    for (int r = 0; r < D; ++r) in[r] = a[base | op.offs[r]];
+    // Only the inner loop unrolls (in[c] needs constant indices to stay in registers). Unrolling
+    // the row loop too makes the compiler hoist all D*D shared loads and spill ~8-16 KB per thread.
+#pragma unroll 1
+    for (int r = 0; r < D; ++r) {
+      cplx<T> s{T(0), T(0)};
+#pragma unroll
+      for (int c = 0; c < D; ++c) s = cadd(s, cmul(m[r * D + c], in[c]));
+      a[base | op.offs[r]] = s;
+    }
+  }
+}
+
+// Any k up to 6, k known only at run time (M2 version, now only used for k = 6). Matrix and member
+// offsets come from global memory; in[] is a 64-entry local-memory array (see BENCH.md, M3).
 template <class T>
 __global__ void apply_kt(cplx<T>* __restrict__ a, std::uint64_t groups, FixedBits f, int dim,
                          const cplx<T>* __restrict__ m, const std::uint64_t* __restrict__ offsets) {
@@ -131,6 +188,30 @@ struct NormSqIfBit {
 unsigned grid_for(std::uint64_t work, unsigned cap) {
   const std::uint64_t blocks = (work + kBlock - 1) / kBlock;
   return static_cast<unsigned>(std::max<std::uint64_t>(1, std::min<std::uint64_t>(blocks, cap)));
+}
+
+// offs[r] = the target bits set in member r of a group. targets[j] maps to bit j of r (matrix order).
+void member_offsets(const Op& op, std::uint64_t* offs) {
+  const int k = op.arity();
+  for (int r = 0; r < (1 << k); ++r) {
+    std::uint64_t off = 0;
+    for (int j = 0; j < k; ++j)
+      if ((r >> j) & 1) off |= std::uint64_t{1} << op.targets[static_cast<std::size_t>(j)];
+    offs[r] = off;
+  }
+}
+
+template <class T, int K>
+void launch_dense(cplx<T>* amps, std::uint64_t groups, const FixedBits& f, const Op& op, unsigned grid) {
+  constexpr int D = 1 << K;
+  DenseOp<T, K> d{};
+  for (int i = 0; i < D * D; ++i) d.m[i] = {T(op.matrix[i].real()), T(op.matrix[i].imag())};
+  member_offsets(op, d.offs);
+  if constexpr (K >= 5) {
+    apply_kt_smem<T, K><<<grid, kBlock>>>(amps, groups, f, d);  // matrix too big for the constant cache
+  } else {
+    apply_kt_fixed<T, K><<<grid, kBlock>>>(amps, groups, f, d);
+  }
 }
 
 }  // namespace
@@ -202,23 +283,25 @@ void CudaStateVector<T>::apply(const Op& op) {
   auto* amps = static_cast<cplx<T>*>(d_amps_);
   auto conv = [&](std::size_t i) { return cplx<T>{T(op.matrix[i].real()), T(op.matrix[i].imag())}; };
 
+  const unsigned grid = grid_for(groups, grid_cap_);
   if (k == 1) {
-    apply_1t<T><<<grid_for(groups, grid_cap_), kBlock>>>(amps, groups, f, std::uint64_t{1} << op.targets[0],
-                                                         conv(0), conv(1), conv(2), conv(3));
+    apply_1t<T><<<grid, kBlock>>>(amps, groups, f, std::uint64_t{1} << op.targets[0], conv(0), conv(1),
+                                  conv(2), conv(3));
+  } else if (k <= 5) {
+    switch (k) {
+      case 2: launch_dense<T, 2>(amps, groups, f, op, grid); break;
+      case 3: launch_dense<T, 3>(amps, groups, f, op, grid); break;
+      case 4: launch_dense<T, 4>(amps, groups, f, op, grid); break;
+      default: launch_dense<T, 5>(amps, groups, f, op, grid); break;
+    }
   } else {
     const int dim = 1 << k;
-    // Matrix (converted to T) followed by the member offsets, in one async copy. targets[j] maps to
-    // bit j of the member index, exactly as on the CPU.
+    // Matrix (converted to T) followed by the member offsets, in one async copy.
     std::vector<unsigned char> staging(sizeof(cplx<T>) * dim * dim + sizeof(std::uint64_t) * dim);
     auto* m = reinterpret_cast<cplx<T>*>(staging.data());
     auto* offs = reinterpret_cast<std::uint64_t*>(staging.data() + sizeof(cplx<T>) * dim * dim);
     for (int i = 0; i < dim * dim; ++i) m[i] = conv(static_cast<std::size_t>(i));
-    for (int r = 0; r < dim; ++r) {
-      std::uint64_t off = 0;
-      for (int j = 0; j < k; ++j)
-        if ((r >> j) & 1) off |= std::uint64_t{1} << op.targets[static_cast<std::size_t>(j)];
-      offs[r] = off;
-    }
+    member_offsets(op, offs);
     // Pageable host memory: the copy is staged before this call returns, so `staging` may die, and
     // stream order guarantees the previous op's kernel is done with d_op_ before it's overwritten.
     QSIM_CUDA(cudaMemcpyAsync(d_op_, staging.data(), staging.size(), cudaMemcpyHostToDevice));

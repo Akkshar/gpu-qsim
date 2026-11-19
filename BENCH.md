@@ -27,6 +27,66 @@ CMake 4.4.2, Visual Studio generator, sm_86. **On battery, Windows "Silent" prof
 
 **Superseded** by the on-AC run above (358 GB/s).
 
+## M3.1: multi-target kernel — compile-time k, matrix in the argument block
+
+### Found on the way: everything had been compiled for sm_75
+`ptxas -v` (now always on, `QSIM_PTXAS_INFO`) printed `for 'sm_75'`. `CMAKE_CUDA_ARCHITECTURES`
+was set *after* `project()`, which had already filled in nvcc's default (75), so since M0 every kernel
+was a Turing build that the driver JIT-compiled from PTX at load. Fixed by setting it before
+`project()`. Re-measured the M2 kernels as native sm_86: within ±1% of the M2 numbers (h 98–100%,
+cx 48–100%, mat2 61–68%, mat3 46–58%), so earlier results stand.
+
+### Diagnosis (hypothesis 3 from M2: confirmed)
+ptxas: `apply_kt` has a **512-byte stack frame (f32), 1024 (f64)**: the `in[64]` array indexed by a
+runtime `dim` can't live in registers. ncu, one `mat3` op at 24 q f32 (`profiles/m3-kt-before`), ideal
+traffic = 134.2 MB read + 134.2 MB written:
+
+| | M2 `apply_kt` | M3 `apply_kt_fixed<f,3>` |
+|---|---|---|
+| DRAM read / write | 159.5 / **264.8 MB** | **134.3 / 133.5 MB** (= ideal) |
+| local-memory load / store sectors | 33.6 M / 4.2 M (1.07 GB of L1 traffic) | **0 / 0** |
+| instructions executed | 60.2 M | 32.1 M |
+| registers / warps active | 41 / 69% | 53 / 64% |
+| kernel time (ncu, base clocks) | 1.61 ms | **0.96 ms** |
+
+Writes were 2× ideal: spilled `in[]` lines get evicted to DRAM. Local loads were 8 per amplitude
+because the inner loop re-reads `in[c]` for every output row.
+
+### Fix
+`apply_kt_fixed<T, K>` for K = 2..4: K is a template parameter so every loop fully unrolls and
+`in[]` is registers; matrix + member offsets are passed by value in the kernel arguments
+(`__grid_constant__`, up to 16.6 KB, fine since CUDA 12.1 on sm_70+), so every matrix read is a
+constant-bank broadcast. K = 6 keeps the M2 kernel.
+
+K = 5 needed two more steps:
+1. Same kernel: **25% of ceiling**. The 8 KB (f32) matrix exceeds the per-SM constant cache, and 167
+   registers leave 8 warps per SM.
+2. Matrix copied to shared memory per block, all loops unrolled: **5%** (215–224 ms/op). ptxas:
+   **7.5 KB spills** per thread (f32): the compiler hoisted all 1024 shared loads into registers.
+3. Shared memory + only the inner loop unrolled (`#pragma unroll 1` on rows): **82–97%**, 91 registers,
+   no spills.
+
+### Results — 28 q f32, `bench/gpu_sweep.py`, median of 5 (k=5: 3), on AC
+
+| Op | M2 | **M3.1** | Notes |
+|---|---|---|---|
+| mat2, all 28 targets | 58–67% | **97–100%** | |
+| mat3, all 28 targets | 46–58% | **99–101%**; dips 81–92% at t = 14, 15, 19 | dips: qubit 0 or 1 among the targets |
+| mat4, all 28 targets | — | **95–98%**; dips 68–86% at t = 14, 18, 19, 23, 24 | same low-qubit effect |
+| mat5, t = 0/7/14/21/27 | — (generic: ~25% est.) | **82–97%** | shared-memory variant |
+
+f64, t = 0/7/27: mat2 40–47% (was 36%), mat3 21–23% (was 19%), mat4 11%, mat5 6%. Time doubles per
+extra target (51 → 105 → 215 → 410 ms): FP64-bound. mat5 = 2^28 × 32 complex MACs × 8 flops in 0.41 s
+≈ 168 GFLOP/s, ~60% of this GeForce's FP64 peak (1/64 of FP32). Nothing to gain without FP32.
+
+Correctness: new [cuda] case with one op of every k = 2..6 (scattered, all-low, all-high, controlled);
+53/53 Catch2 cases, qiskit_check gpu f64 200/200 (9.2e-16), f32 200/200 (2.6e-7; seed 9: 2.55e-7),
+18 q 300/300 (1.7e-15).
+
+**Remaining M3 targets:** low qubits (0/1) as controls (48%) or as non-first targets (68–92%): every
+32-byte sector fetched is partly waste. Then gate fusion: every kernel is now at the memory floor,
+so fewer passes over the state is the only way left to go faster.
+
 ## M2: naive GPU kernels — one launch per op
 
 **Kernels** (`src/cuda/statevector.cu`): `apply_1t` (one thread per amplitude pair, 2x2 matrix in

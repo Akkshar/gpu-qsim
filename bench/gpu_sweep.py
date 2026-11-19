@@ -31,17 +31,26 @@ def mat_text(k: int, qubits: list[int]) -> str:
     return f"mat {k} {' '.join(map(str, qubits))} " + " ".join(f"{v} 0" for _ in range(dim * dim))
 
 
+def spread_qubits(t: int, n: int, k: int) -> list[int]:
+    """t first, then qubits spread around the register: t + n/2, t + n/3, t + n/5, ... (distinct)."""
+    qs = [t]
+    for step in (n // 2, n // 3, n // 5, n // 7, n // 11, 1, 2, 3):
+        q = (t + step) % n
+        if q not in qs:
+            qs.append(q)
+        if len(qs) == k:
+            return qs
+    raise ValueError(f"cannot pick {k} distinct qubits from {n}")
+
+
 def op_line(kind: str, t: int, n: int) -> str:
-    other = (t + n // 2) % n  # a far-away second qubit
-    third = (t + n // 3) % n if (t + n // 3) % n not in (t, other) else (t + 1) % n
     if kind == "h":
         return f"h {t}"
     if kind == "cx":
-        return f"cx {other} {t}"  # control elsewhere, target t
-    if kind == "mat2":
-        return mat_text(2, [t, other])
-    if kind == "mat3":
-        return mat_text(3, [t, other, third])
+        return f"cx {(t + n // 2) % n} {t}"  # control far away, target t
+    if kind.startswith("mat"):
+        k = int(kind[3:])
+        return mat_text(k, spread_qubits(t, n, k))
     raise ValueError(kind)
 
 

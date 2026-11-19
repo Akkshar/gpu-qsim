@@ -132,6 +132,23 @@ TEMPLATE_TEST_CASE("GPU matches CPU: controls and multi-target ops", "[cuda]", f
   CHECK(max_diff_vs_cpu<TestType>(text) < tol<TestType>());
 }
 
+TEMPLATE_TEST_CASE("GPU matches CPU: every matrix size, scattered and controlled", "[cuda]", float, double) {
+  // One op of each target count 2..6 (each k has its own kernel), targets out of order and spread
+  // over low and high qubits, plus controlled 2-target ops.
+  std::mt19937 rng(23);
+  std::string text = "qubits 10\n";
+  for (int j = 0; j < 10; ++j) text += "ry " + num(0.2 + 0.15 * j) + " " + std::to_string(j) + "\n";
+  text += random_mat(2, {9, 0}, rng) + "\n";
+  text += random_mat(3, {1, 8, 4}, rng) + "\n";
+  text += random_mat(4, {7, 0, 9, 3}, rng) + "\n";
+  text += random_mat(5, {2, 9, 0, 6, 5}, rng) + "\n";
+  text += random_mat(6, {8, 1, 3, 9, 0, 4}, rng) + "\n";
+  text += random_mat(5, {0, 1, 2, 3, 4}, rng) + "\n";  // all low qubits
+  text += random_mat(5, {9, 8, 7, 6, 5}, rng) + "\n";  // all high qubits, descending
+  text += "cswap 0 9 5\ncswap 9 1 2\n";
+  CHECK(max_diff_vs_cpu<TestType>(text) < tol<TestType>());
+}
+
 TEMPLATE_TEST_CASE("GPU matches CPU: random circuits", "[cuda][random]", float, double) {
   const double t = std::is_same_v<TestType, float> ? 1e-4 : 1e-11;
   for (unsigned seed = 1; seed <= 12; ++seed) {
