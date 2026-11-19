@@ -112,7 +112,7 @@ Each step: hypothesis → change → `ncu` before/after → entry in BENCH.md.
 - **Done when:** 1q-gate kernel at ≥80% of peak bandwidth, and the fused/blocked path beats per-gate
   application by a measured factor on QFT and random circuits.
 
-### M4 — Benchmarks (weekend 4)
+### M4 — Benchmarks (weekend 4) — DONE 2026-11-20 (Grover skipped: needs >2 controls; results in BENCH.md)
 - Circuits: GHZ, QFT, Grover, random layered circuits (1q random rotations + CZ ladder), one QAOA layer.
 - Sweep n = 16 … 29 (f32) / 28 (f64). Depth fixed per circuit family.
 - Compare against: own CPU (OpenMP), Qiskit Aer CPU, Qiskit Aer GPU, cuStateVec — same precision,

@@ -27,6 +27,60 @@ CMake 4.4.2, Visual Studio generator, sm_86. **On battery, Windows "Silent" prof
 
 **Superseded** by the on-AC run above (358 GB/s).
 
+## M4: benchmarks vs Qiskit Aer and NVIDIA cuStateVec
+
+![time vs qubits](docs/img/m4_scaling.png)
+![time at 28 qubits](docs/img/m4_at28.png)
+
+**Setup.** 4 circuit families (`bench/circuits.py`: QFT, 20-layer random-circuit-sampling style,
+QAOA ring p=2, GHZ) at 16–28 qubits, single precision, RTX 3070 Ti Laptop on AC, 2026-11-20.
+`bench/m4_bench.py` runs every backend once per round, 3 interleaved rounds, median; `m4_plot.py`
+makes the charts and tables. Same `.qc` file for every backend.
+
+| backend | where | what's timed |
+|---|---|---|
+| qsim, unfused / fused (K=4) | Windows, native | `qsim_cli --gpu`: all ops queued + final sync, state reset excluded (min of 2 per round) |
+| cuStateVec 1.15 (cuquantum-python 26.11) | WSL2 | CUDA events around one `custatevecApplyMatrix` per gate, no fusion |
+| Aer 0.18.4 GPU + `cuStateVec_enable` + Aer fusion | WSL2 | Aer `time_taken` (init + run + one `measure_all` sample) after a warm-up |
+| Aer GPU, native kernels, default fusion | WSL2 | same; ≤ 26 q (slow) |
+| Aer CPU, 20 threads, default fusion | WSL2 | same; ≤ 26 q (slow) |
+
+**Checked before trusting it:** the `.qc` → Qiskit converter matches qsim's CPU simulator on every
+family (≤ 2e-16); cuStateVec's final states match Qiskit (≤ 1.5e-16); device copy bandwidth inside
+WSL2 is 357 GB/s vs 358 on Windows, so the WSL baselines aren't handicapped on memory-bound work.
+For Aer I tried the configurations and report its fastest: native GPU kernels with default fusion
+took 1720 ms on layered-24 (fusion off: 1205; fusion_max_qubit 2: 844), cuStateVec backend +
+fusion: 105 ms. The table also keeps Aer's native default for reference.
+
+**Results at 28 qubits (ms):**
+
+| circuit | gates | **qsim fused** | qsim unfused | cuStateVec | Aer GPU + cuStateVec | qsim-fused vs cuStateVec | vs Aer GPU + cuStateVec |
+|---|---|---|---|---|---|---|---|
+| QFT | 420 | **1,711** | 2,793 | 2,758 | 1,550 | **1.61× faster** | 0.91× (Aer 10% faster) |
+| Layered random | 830 | **4,529** | 8,527 | 8,382 | 1,782 | **1.85× faster** | 0.39× (Aer 2.5× faster) |
+| QAOA ring | 252 | **502** | 2,415 | 2,381 | 461 | **4.75× faster** | 0.92× (Aer 8% faster) |
+| GHZ | 28 | **111** | 187 | 185 | 280 | **1.66× faster** | **2.52× faster** |
+
+At 26 qubits vs Aer's native GPU kernels: qsim-fused is **4.8× (QFT), 9.6× (layered), 13.8× (QAOA),
+29× (GHZ)** faster; vs Aer CPU on 20 threads: **12–48×**. Full tables: `bench/results/m4_tables.md`
+(regenerate with `python bench/m4_plot.py`).
+
+**What it says:**
+1. **Kernels: on par with NVIDIA's.** Unfused qsim is within 1.3–1.7% of cuStateVec's per-gate
+   time on every family at 28 q (both at the memory floor for 1-qubit gates).
+2. **Fusion: behind Aer's.** With fusion, qsim beats per-gate cuStateVec by 1.6–4.8×, but Aer's
+   fusion + cuStateVec beats qsim on gate-dense circuits, by 2.5× on the layered circuit. Aer's
+   fusion is cost-based and can move gates past gates on other qubits (they commute); qsim's is an
+   in-order greedy that closes a block as soon as the next gate doesn't fit. On the layered circuit
+   that means a u3 layer on 28 qubits closes 7 four-qubit blocks in a row, and every cz on the
+   boundary between two blocks starts a new pass.
+3. **Fixed overhead: qsim wins small and shallow.** Aer pays ~3–5 ms per run (16–20 q rows), and
+   on GHZ (28 gates) Aer's fusion doesn't help, so qsim is 2.5× faster even at 28 q.
+
+**Next:** commutation-aware fusion: let a gate join an earlier open block if it touches none of the
+qubits of the gates in between (disjoint gates commute), and pick block boundaries by cost instead of
+first-fit. The layered circuit is the target (4.5 s vs Aer's 1.8 s).
+
 ## M3.3: low-qubit blocks — shared-memory tiles (failed), warp shuffles (kept)
 
 **Problem (from M3.2):** dense blocks whose targets are the lowest qubits run far below the floor
