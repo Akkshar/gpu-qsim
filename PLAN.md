@@ -82,7 +82,7 @@ gpu-qsim/
 - WSL2: `nvidia-smi` works inside; install qiskit-aer-gpu and cuquantum-python in a uv venv.
 - **Done when:** a kernel is profiled on Windows, and Aer-GPU runs a 20-qubit circuit in WSL.
 
-### M1 — CPU reference (weekend 1) — support code done 2026-11-19, simulator is yours: see docs/M1.md
+### M1 — CPU reference (weekend 1) — DONE 2026-11-19 (v1 by you, v2 fast paths by Claude on request; see BENCH.md)
 - Gates: H X Y Z S Sdg T Tdg RX RY RZ U3, CX CZ SWAP, CCX, generic controlled-U, generic 2×2 / 4×4.
 - Index math: for target t, iterate k over 2^(n-1); i0 = insert a 0 bit at position t in k; i1 = i0 | (1<<t).
 - Measurement: probabilities, sampling (cumulative sum + binary search), collapse and renormalise.

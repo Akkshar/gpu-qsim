@@ -27,6 +27,34 @@ CMake 4.4.2, Visual Studio generator, sm_86. **On battery, Windows "Silent" prof
 
 **Superseded** by the on-AC run above (358 GB/s).
 
+## M1: CPU reference v2 — insert-bit enumeration + 1-target fast path
+
+**Change:** groups are enumerated directly (insert a 0 at every target/control position, ascending,
+then OR in the control mask) instead of scanning 2^n indices and skipping. One-target ops get a
+register-only 2x2 path in the state's precision with a plain complex multiply (`cmul`, avoiding
+std::complex's Annex G NaN handling). Multi-target ops keep v1's gather/multiply/scatter.
+Same circuits, same machine, on AC, median of 5 (3 for 24 q):
+
+| Circuit | v1 f64 | **v2 f64** | v1 f32 | **v2 f32** | speedup (f64 / f32) |
+|---|---|---|---|---|---|
+| 20 q, 200 × `h` | 5.09 ms/op | **1.67 ms/op** (20.1 GB/s) | — | **1.41 ms/op** | **3.1×** / — |
+| 24 q, 200 × `h` | — | **39.3 ms/op** (13.7 GB/s) | — | — | — |
+| 16 q, 200 random | 0.24 | **0.14** | 0.25 | **0.15** | 1.7× / 1.7× |
+| 20 q, 200 random | 4.30 | **3.32** | 4.30 | **2.49** | 1.3× / 1.7× |
+| 24 q, 50 random | 105 | **84** (spread 49–86) | 100 | **52** | 1.3× / 1.9× |
+
+Correctness unchanged: 39/39 Catch2 cases; qiskit_check f64 200/200 (9.9e-16) and 500/500 (2.0e-15);
+f32 200/200 (2.6e-7, was 1.2e-7: 1-target gates now compute in float) and 300/300 at ≤ 16 q (3.1e-7).
+
+- 1-target gates now run at ~20 GB/s at 20 q, about what one core can stream from DRAM, and f32 is
+  finally faster than f64. That path is memory-bound now.
+- Random circuits only gain 1.3–1.9× because ~1/3 of their ops have 2–3 targets (swap, cswap,
+  2–3 qubit `mat`), which still go through the generic gather/scatter loop. A 2-target register path
+  would be the next CPU win, but the CPU code is the reference, not the product: the GPU work in
+  M2/M3 is where speed matters.
+- 24 q timings vary a lot run to run (49–86 ms/op for v2 f64): 256 MiB states, page faults/thermal.
+  Use median of ≥ 5 at this size.
+
 ## M1: CPU reference v1 — general `apply` (scan all 2^n indices, skip non-matching)
 
 **Setup:** single thread, Release, on AC. `qsim_cli <file> --reps 3`, median. Circuits from

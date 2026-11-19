@@ -13,6 +13,24 @@
 
 namespace qsim {
 
+namespace {
+
+// Plain complex multiply. std::complex's operator* is allowed to do C99 Annex G inf/NaN recovery
+// (GCC calls __muldc3 for it unless -ffast-math), which is far slower than these four FMAs.
+template <class T>
+inline std::complex<T> cmul(std::complex<T> a, std::complex<T> b) {
+  return {a.real() * b.real() - a.imag() * b.imag(), a.real() * b.imag() + a.imag() * b.real()};
+}
+
+// Uniform double in [0, 1) from the top 53 bits of one engine draw. The algorithms behind
+// std::uniform_real_distribution / std::discrete_distribution are implementation-defined, so the
+// same seed gives different results on MSVC and libstdc++; mt19937_64's raw output is specified.
+inline double uniform01(std::mt19937_64& rng) {
+  return static_cast<double>(rng() >> 11) * 0x1.0p-53;
+}
+
+}  // namespace
+
 template <class T>
 CpuStateVector<T>::CpuStateVector(int num_qubits) : n_(num_qubits) {
   if (num_qubits < 1 || num_qubits > 34)
@@ -36,9 +54,15 @@ void CpuStateVector<T>::run(const Circuit& c) {
   for (const Op& op : c.ops) apply(op);
 }
 
-// ============================ M1: your code from here down ============================
-// docs/M1.md walks through the order to do these in. Delete each throw as you go.
+// ============================ M1: simulator core ============================
 
+// Apply op.matrix to op.targets wherever every op.controls qubit is 1.
+//
+// Every group of amplitudes the op touches has a "base" index with all control bits = 1 and all
+// target bits = 0. Rather than scanning all 2^n indices and skipping the rest, count g over the
+// 2^(n - targets - controls) groups and build each base directly: insert a 0 at every target and
+// control position, lowest position first (inserting a low bit shifts every higher bit up by one,
+// so going in ascending order keeps the later positions correct), then OR in the control mask.
 template <class T>
 void CpuStateVector<T>::apply(const Op& op) {
   using ComplexD = std::complex<double>;
@@ -46,20 +70,43 @@ void CpuStateVector<T>::apply(const Op& op) {
   const int k = static_cast<int>(op.targets.size());
   if (k <= 0) return;
 
-  const std::uint64_t dim = std::uint64_t{1} << k;
-  const std::uint64_t num_states = std::uint64_t{1} << n_;
-
   std::uint64_t ctrl_mask = 0;
-  for (int c : op.controls) {
-    ctrl_mask |= (std::uint64_t{1} << c);
+  for (int c : op.controls) ctrl_mask |= (std::uint64_t{1} << c);
+
+  std::vector<int> fixed(op.targets);
+  fixed.insert(fixed.end(), op.controls.begin(), op.controls.end());
+  std::sort(fixed.begin(), fixed.end());
+  const std::uint64_t groups = std::uint64_t{1} << (n_ - static_cast<int>(fixed.size()));
+
+  auto base_of = [&](std::uint64_t g) {
+    for (int p : fixed) g = insert_zero_bit(g, p);
+    return g | ctrl_mask;
+  };
+
+  // ---- Fast path: one target. 2x2 in registers, matrix converted to the state's precision once.
+  if (k == 1) {
+    const int t = op.targets[0];
+    const std::uint64_t bit = std::uint64_t{1} << t;
+    const amp_t m00(op.matrix[0]), m01(op.matrix[1]), m10(op.matrix[2]), m11(op.matrix[3]);
+    auto pair = [&](std::uint64_t i0) {
+      const std::size_t a = static_cast<std::size_t>(i0), b = static_cast<std::size_t>(i0 | bit);
+      const amp_t a0 = amps_[a], a1 = amps_[b];
+      amps_[a] = cmul(m00, a0) + cmul(m01, a1);
+      amps_[b] = cmul(m10, a0) + cmul(m11, a1);
+    };
+    if (op.controls.empty()) {
+      for (std::uint64_t g = 0; g < groups; ++g) pair(insert_zero_bit(g, t));
+    } else {
+      for (std::uint64_t g = 0; g < groups; ++g) pair(base_of(g));
+    }
+    return;
   }
 
-  std::uint64_t target_mask = 0;
-  for (int t : op.targets) {
-    target_mask |= (std::uint64_t{1} << t);
-  }
+  // ---- General path: k targets. Gather 2^k amplitudes, multiply in double, scatter back.
+  const std::uint64_t dim = std::uint64_t{1} << k;
 
-  // Precompute bit offsets for each basis state r in [0, 2^k - 1] within the target subspace.
+  // offsets[r]: which target bits are set for member r of a group. Uses targets in *matrix order*
+  // (targets[0] = bit 0 of r), not the sorted order used to build the base.
   std::vector<std::uint64_t> offsets(static_cast<std::size_t>(dim), 0);
   for (std::uint64_t r = 0; r < dim; ++r) {
     std::uint64_t off = 0;
@@ -75,9 +122,8 @@ void CpuStateVector<T>::apply(const Op& op) {
   std::vector<ComplexD> in(static_cast<std::size_t>(dim));
   std::vector<ComplexD> out(static_cast<std::size_t>(dim));
 
-  for (std::uint64_t base = 0; base < num_states; ++base) {
-    if ((base & ctrl_mask) != ctrl_mask) continue;
-    if ((base & target_mask) != 0) continue;
+  for (std::uint64_t g = 0; g < groups; ++g) {
+    const std::uint64_t base = base_of(g);
 
     for (std::uint64_t r = 0; r < dim; ++r) {
       const std::uint64_t idx = base | offsets[static_cast<std::size_t>(r)];
@@ -91,8 +137,8 @@ void CpuStateVector<T>::apply(const Op& op) {
       ComplexD sum{0.0, 0.0};
       const std::size_t row_offset = static_cast<std::size_t>(r * dim);
       for (std::uint64_t c = 0; c < dim; ++c) {
-        sum += op.matrix[row_offset + static_cast<std::size_t>(c)] *
-               in[static_cast<std::size_t>(c)];
+        sum += cmul(op.matrix[row_offset + static_cast<std::size_t>(c)],
+                    in[static_cast<std::size_t>(c)]);
       }
       out[static_cast<std::size_t>(r)] = sum;
     }
@@ -127,7 +173,8 @@ std::vector<double> CpuStateVector<T>::probabilities() const {
   return probs;
 }
 
-// Draw `shots` basis-state indices from the distribution |amp|^2, seeded so results are reproducible.
+// Draw `shots` basis-state indices from the distribution |amp|^2, seeded so results are reproducible
+// (on every platform: see uniform01). Cumulative sum + binary search: one 8-byte-per-amplitude array.
 template <class T>
 std::vector<std::uint64_t> CpuStateVector<T>::sample(int shots, std::uint64_t seed) const {
   if (shots < 0) {
@@ -137,12 +184,25 @@ std::vector<std::uint64_t> CpuStateVector<T>::sample(int shots, std::uint64_t se
   samples.reserve(static_cast<std::size_t>(shots));
   if (shots == 0) return samples;
 
-  const std::vector<double> probs = probabilities();
-  std::mt19937_64 rng(seed);
-  std::discrete_distribution<std::uint64_t> dist(probs.begin(), probs.end());
+  std::vector<double> cdf(amps_.size());
+  double running = 0.0;
+  for (std::size_t i = 0; i < amps_.size(); ++i) {
+    const double re = static_cast<double>(amps_[i].real());
+    const double im = static_cast<double>(amps_[i].imag());
+    running += re * re + im * im;
+    cdf[i] = running;
+  }
+  const double total = running;  // ~1, but use the real sum so rounding drift can't skew draws
+  if (!(total > 0.0)) throw std::runtime_error("CpuStateVector::sample: state has zero norm");
 
+  std::mt19937_64 rng(seed);
   for (int i = 0; i < shots; ++i) {
-    samples.push_back(dist(rng));
+    const double u = uniform01(rng) * total;
+    // First entry strictly greater than u: zero-probability states (equal neighbouring cdf values)
+    // can never be picked.
+    auto it = std::upper_bound(cdf.begin(), cdf.end(), u);
+    if (it == cdf.end()) --it;  // u can round up to total
+    samples.push_back(static_cast<std::uint64_t>(it - cdf.begin()));
   }
   return samples;
 }
@@ -172,8 +232,7 @@ int CpuStateVector<T>::measure(int qubit, std::mt19937_64& rng) {
   const long double total = p0_ld + p1_ld;
   const double p0 = (total > 0.0L) ? static_cast<double>(p0_ld / total) : 0.0;
 
-  std::uniform_real_distribution<double> uniform(0.0, 1.0);
-  const double r = uniform(rng);
+  const double r = uniform01(rng);
   const int outcome = (r < p0) ? 0 : 1;
 
   if (outcome == 0) {
