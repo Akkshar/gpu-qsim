@@ -27,6 +27,26 @@ CMake 4.4.2, Visual Studio generator, sm_86. **On battery, Windows "Silent" prof
 
 **Superseded** by the on-AC run above (358 GB/s).
 
+## M1: CPU reference v1 — general `apply` (scan all 2^n indices, skip non-matching)
+
+**Setup:** single thread, Release, on AC. `qsim_cli <file> --reps 3`, median. Circuits from
+`tests/qiskit_check.py emit --seed 7` (mixed gates incl. controlled and 1–3 qubit `mat`).
+
+| Circuit | f64 per op | f32 per op | f64 "full-pass GB/s" |
+|---|---|---|---|
+| 16 q, 200 random ops | 0.24 ms | 0.25 ms | 8.7 |
+| 20 q, 200 random ops | 4.30 ms | 4.30 ms | 7.8 |
+| 24 q, 50 random ops | 105 ms (spread 74–108) | 100 ms | 5.1 |
+| 20 q, 200 × `h` only | 5.09 ms | — | 6.6 |
+
+Correctness: all 39 Catch2 cases; qiskit_check 200/200 f64 (worst 9.9e-16), 200/200 f32 (1.2e-7),
+500/500 f64 depth ≤ 100 (2.0e-15).
+
+- **f32 is no faster than f64** → this loop is bound by per-index overhead (2^n iterations, branch
+  per index, gather/scatter through small vectors, a dense 2^k matmul in double), not by memory.
+- Next: a dedicated 1-target path (pair counter + `insert_zero_bit`, matrix converted to `amp_t`
+  once, no gather vectors) and controls by inserting bits instead of skipping. Re-measure.
+
 ## 2026-11-19 — M0: the real ceiling (on AC) ← use this one
 
 **Setup:** plugged in, Windows scheme still "Silent", GPU in P0, memory at its **6001 MHz max**,
