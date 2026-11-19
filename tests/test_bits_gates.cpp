@@ -113,5 +113,13 @@ TEST_CASE("gate definitions match Qiskit exactly, including global phase", "[gat
   CHECK(close(U3(th, -kPi / 2, kPi / 2), RX(th)));
   CHECK(close(U3(th, 0, 0), RY(th)));
 
+  // Angles where cos(t/2) and sin(t/2) have different signs, written out from the formula with
+  // std::exp so the expected value never depends on std::polar's handling of negative magnitudes.
+  for (double t : {-2.0, 3.9, -5.5}) {
+    const double p = 0.3, l = -1.1, c = std::cos(t / 2), s = std::sin(t / 2);
+    INFO("theta " << t);
+    CHECK(close(U3(t, p, l), {c, -std::exp(I * l) * s, std::exp(I * p) * s, std::exp(I * (p + l)) * c}));
+  }
+
   CHECK(close(SWAP(), {1, 0, 0, 0,  0, 0, 1, 0,  0, 1, 0, 0,  0, 0, 0, 1}));
 }
