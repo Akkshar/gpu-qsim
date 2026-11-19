@@ -1,9 +1,15 @@
 #pragma once
-// Bit tricks for walking a state vector. These become the heart of the GPU kernels in M2, so they
-// live in a header (M2 will mark them __host__ __device__).
+// Bit tricks for walking a state vector. Shared by the CPU reference and the CUDA kernels, so they
+// live in a header and are callable from both host and device code.
 
 #include <cassert>
 #include <cstdint>
+
+#if defined(__CUDACC__)
+#define QSIM_HD __host__ __device__
+#else
+#define QSIM_HD
+#endif
 
 namespace qsim {
 
@@ -14,7 +20,7 @@ namespace qsim {
 // Why it matters: a 1-qubit gate on qubit t pairs every index with bit t = 0 with the same index
 // with bit t = 1. If k counts pairs (0 .. 2^(n-1) - 1), insert_zero_bit(k, t) is the pair's
 // "bit t = 0" index, with no branches and no wasted iterations. Two or three shifts and masks.
-inline std::uint64_t insert_zero_bit(std::uint64_t k, int pos) {
+QSIM_HD inline std::uint64_t insert_zero_bit(std::uint64_t k, int pos) {
   assert(pos >= 0 && pos < 64);  // shifting a 64-bit value by >= 64 or < 0 is undefined behaviour
   const std::uint64_t low_mask = (std::uint64_t{1} << pos) - std::uint64_t{1};
   const std::uint64_t low = k & low_mask;

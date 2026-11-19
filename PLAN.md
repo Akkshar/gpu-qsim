@@ -89,7 +89,7 @@ gpu-qsim/
 - Tests: 200 random circuits up to 12 qubits; fidelity |<ψ_qiskit|ψ_ours>|² > 1 − 1e-10 (f64).
 - **Done when:** all tests pass and the CPU timings for 16–24 q are recorded as the first baseline.
 
-### M2 — Naive GPU (weekend 1–2)
+### M2 — Naive GPU (weekend 1–2) — DONE 2026-11-20 (written by Claude on request; see BENCH.md)
 - One thread per amplitude pair, the same bit-insert trick. Gate matrix passed as kernel arguments.
 - Controlled gates: thread only over indices whose control bits are 1 (insert those bits too).
 - Measurement on GPU: CUB reduce (norm), CUB scan (cumulative prob), batched binary search per shot.

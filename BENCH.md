@@ -27,6 +27,56 @@ CMake 4.4.2, Visual Studio generator, sm_86. **On battery, Windows "Silent" prof
 
 **Superseded** by the on-AC run above (358 GB/s).
 
+## M2: naive GPU kernels — one launch per op
+
+**Kernels** (`src/cuda/statevector.cu`): `apply_1t` (one thread per amplitude pair, 2x2 matrix in
+kernel arguments) and `apply_kt` (one thread per group of 2^k, runtime `dim`, matrix + offsets in
+global memory, gathered amplitudes in a per-thread array). Both use the same insert-zero-bit group
+enumeration as the CPU, so no thread skips work. 256-thread blocks, grid capped at 32 × SMs,
+grid-stride loops. Measurement: Thrust transform_reduce / transform_inclusive_scan / vectorised
+upper_bound, uniforms drawn on the host exactly like the CPU (same seed → same samples).
+
+**Correctness:** 12 new [cuda] Catch2 cases (GPU vs CPU reference: every target position, every
+control/multi-target kind incl. a 6-target `mat`, 12 random circuits up to 15 q, sampling and
+measurement identical to the CPU for the same seed). qiskit_check --backend gpu: 200/200 f64
+(9.2e-16), 200/200 f32 (2.6e-7), 300/300 f64 up to 18 q / depth 80 (1.7e-15).
+
+**Bandwidth sweep** — `bench/gpu_sweep.py`, 28 qubits, 64 identical ops per run, median of 5, on AC.
+Bandwidth counts the amplitudes an op actually touches (read + write; a controlled op touches half),
+as a % of the 358 GB/s ceiling. Floor for a full pass at 28 q f32 = 12.0 ms.
+
+| Op (f32, 28 q) | ms/op | % of ceiling | Notes |
+|---|---|---|---|
+| `h t`, every t = 0..27 | 11.98–12.25 | **98–100%** | already at the memory limit, at every target position |
+| `cx c t`, c ≥ 4 | 6.00–6.28 | **96–100%** | touches half the state, takes half the time |
+| `cx c t`, c = 2, 3 | 6.60–6.67 | 90–91% | |
+| `cx c t`, **c = 0, 1** | 12.1–12.5 | **48–49%** | control on a low qubit: touched amplitudes are interleaved with untouched ones, so every 32-byte sector fetched is half waste |
+| `mat2` (dense 4x4), every t | 17.8–20.7 | **58–67%** | not memory-bound: see below |
+| `mat3` (dense 8x8), every t | 20.7–26.3 | **46–58%** | worst when qubit 0/1 is among the targets in some positions |
+
+| Op (f64, 28 q, t = 0/14/27) | ms/op | % of ceiling |
+|---|---|---|
+| `h` | 29.0–29.7 | 81–83% |
+| `mat2` | 66.6–67.4 | 36% |
+| `mat3` | 124–126 | 19% |
+
+What this says (hypotheses for M3, to confirm with ncu):
+1. **1-target f32 is done**: 98–100% at every target, including t = 0 where pairs are adjacent.
+   Gate fusion (fewer passes), not a faster kernel, is the only way to beat 12 ms/gate here.
+2. **Low-qubit controls waste half the bandwidth.** Fix candidates: have each thread handle both
+   halves of the control-0 region (i.e. treat low controls as targets with an identity block), or
+   remap qubits so controls never sit on bits 0–1.
+3. **`apply_kt` is far from the memory limit even in f32.** Arithmetic is ~32 flops/amplitude for
+   mat2, a few % of FP32 peak, so it's not compute. Likely culprits: `in[64]` indexed with a runtime
+   `dim` lives in local memory (spills), and matrix/offset reads from global memory every iteration.
+   Fix: template the kernel on k so the arrays become registers and the loops unroll; matrix in
+   shared or constant memory.
+4. **f64 multi-target is FP64-bound**: GeForce Ampere runs FP64 at 1/64 of FP32. mat3 is ~64
+   flops/amplitude → ~140 GFLOP/s, roughly half the card's FP64 peak. f64 is for validation; f32 is
+   the performance target (as for cuStateVec benchmarks).
+5. Metric note: the first sweep run used "full-pass equivalent" bandwidth, which showed controlled
+   gates at "200%". The CLI now counts touched bytes only; all numbers above use that.
+
 ## M1: CPU reference v2 — insert-bit enumeration + 1-target fast path
 
 **Change:** groups are enumerated directly (insert a 0 at every target/control position, ascending,

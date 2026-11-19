@@ -29,8 +29,14 @@ else()
   target_compile_options(qsim_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# ---- CUDA backend (M2) ----
+find_package(CUDAToolkit REQUIRED)
+add_library(qsim_cuda STATIC src/cuda/statevector.cu)
+target_link_libraries(qsim_cuda PUBLIC qsim_core CUDA::cudart_static)
+target_compile_options(qsim_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W3 -Xcompiler=/utf-8 -Xcompiler=/Zc:preprocessor>)
+
 add_executable(qsim_cli tools/qsim_cli.cpp)
-target_link_libraries(qsim_cli PRIVATE qsim_core)
+target_link_libraries(qsim_cli PRIVATE qsim_core qsim_cuda)
 
 # M0: memory-bandwidth probe — measures the practical DRAM ceiling the simulator is scored against.
 add_executable(bwprobe tools/bwprobe.cu)
@@ -47,8 +53,9 @@ if(QSIM_BUILD_TESTS)
   add_executable(qsim_tests
     tests/test_bits_gates.cpp
     tests/test_parser.cpp
-    tests/test_statevector.cpp)
-  target_link_libraries(qsim_tests PRIVATE qsim_core Catch2::Catch2WithMain)
+    tests/test_statevector.cpp
+    tests/test_cuda.cpp)       # [cuda] tests need an NVIDIA GPU; exclude with "~[cuda]"
+  target_link_libraries(qsim_tests PRIVATE qsim_core qsim_cuda Catch2::Catch2WithMain)
 
   enable_testing()
   list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)

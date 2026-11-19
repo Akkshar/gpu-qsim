@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "qsim/bits.hpp"
+#include "qsim/random.hpp"
 
 namespace qsim {
 
@@ -20,13 +21,6 @@ namespace {
 template <class T>
 inline std::complex<T> cmul(std::complex<T> a, std::complex<T> b) {
   return {a.real() * b.real() - a.imag() * b.imag(), a.real() * b.imag() + a.imag() * b.real()};
-}
-
-// Uniform double in [0, 1) from the top 53 bits of one engine draw. The algorithms behind
-// std::uniform_real_distribution / std::discrete_distribution are implementation-defined, so the
-// same seed gives different results on MSVC and libstdc++; mt19937_64's raw output is specified.
-inline double uniform01(std::mt19937_64& rng) {
-  return static_cast<double>(rng() >> 11) * 0x1.0p-53;
 }
 
 }  // namespace

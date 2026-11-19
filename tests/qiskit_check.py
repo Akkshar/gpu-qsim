@@ -2,7 +2,8 @@
 
   check: random circuits -> Qiskit Statevector (ground truth) vs `qsim_cli --dump`, amplitude by amplitude
       python tests/qiskit_check.py check [--circuits 200] [--max-qubits 12] [--max-depth 40]
-                                         [--precision f64|f32] [--seed 1] [--exe path/to/qsim_cli]
+                                         [--precision f64|f32] [--backend cpu|gpu] [--seed 1]
+                                         [--exe path/to/qsim_cli]
   emit: write one random circuit to a .qc file (no Qiskit simulation, so any size works)
       python tests/qiskit_check.py emit --qubits 24 --depth 200 --seed 7 --out bench/circuits/rand24.qc
 
@@ -134,8 +135,10 @@ def cmd_check(args) -> int:
             qc_path, dump = Path(tmp) / f"c{i}.qc", Path(tmp) / f"c{i}.bin"
             qc_path.write_text("\n".join(lines) + "\n")
 
-            proc = subprocess.run([str(exe), str(qc_path), f"--{args.precision}", "--dump", str(dump)],
-                                  capture_output=True, text=True, timeout=600)
+            cmd = [str(exe), str(qc_path), f"--{args.precision}", "--dump", str(dump)]
+            if args.backend == "gpu":
+                cmd.append("--gpu")
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             if proc.returncode != 0:
                 err = proc.stderr.strip()
                 if "TODO(M1)" in err:
@@ -159,7 +162,7 @@ def cmd_check(args) -> int:
         path.write_text("\n".join(lines) + "\n")
         print(f"FAIL circuit {i}: {n} qubits, {depth} ops: {why}\n     saved to {path}")
     passed = args.circuits - len(failures)
-    print(f"{passed}/{args.circuits} passed ({args.precision}, seed {args.seed}); "
+    print(f"{passed}/{args.circuits} passed ({args.backend}, {args.precision}, seed {args.seed}); "
           f"worst max |amp diff| {worst:.2e}")
     return 0 if not failures else 1
 
@@ -184,6 +187,7 @@ def main() -> int:
     c.add_argument("--max-depth", type=int, default=40)
     c.add_argument("--precision", choices=["f64", "f32"], default="f64")
     c.add_argument("--seed", type=int, default=1)
+    c.add_argument("--backend", choices=["cpu", "gpu"], default="cpu")
     c.add_argument("--exe", default=str(DEFAULT_EXE))
 
     e = sub.add_parser("emit", help="write a random circuit file")
