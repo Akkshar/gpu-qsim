@@ -62,8 +62,8 @@ fusion: 105 ms. The table also keeps Aer's native default for reference.
 | GHZ | 28 | **111** | 187 | 185 | 280 | **1.66× faster** | **2.52× faster** |
 
 At 26 qubits vs Aer's native GPU kernels: qsim-fused is **4.8× (QFT), 9.6× (layered), 13.8× (QAOA),
-29× (GHZ)** faster; vs Aer CPU on 20 threads: **12–48×**. Full tables: `bench/results/m4_tables.md`
-(regenerate with `python bench/m4_plot.py`).
+29× (GHZ)** faster; vs Aer CPU on 20 threads: **12–48×**. Full tables: [docs/m4_results.md](docs/m4_results.md), raw times:
+`docs/m4_results.json` (regenerate the charts with `python bench/m4_plot.py --in docs/m4_results.json`).
 
 **What it says:**
 1. **Kernels: on par with NVIDIA's.** Unfused qsim is within 1.3–1.7% of cuStateVec's per-gate
