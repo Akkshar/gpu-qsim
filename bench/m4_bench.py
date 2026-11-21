@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -37,8 +38,27 @@ import circuits  # noqa: E402
 
 ROOT = circuits.ROOT
 EXE = ROOT / "build" / "Release" / "qsim_cli.exe"
-WSL_REPO = "/mnt/c/Users/akksh/Claude/gpu-qsim"
-VENVS = "/home/akksh/gpu-qsim-baselines"
+WSL_DISTRO = os.environ.get("QSIM_WSL_DISTRO", "Ubuntu-24.04")
+
+
+def wsl_path(p: Path) -> str:
+    """C:\\some\\dir -> /mnt/c/some/dir (WSL's default automount)."""
+    p = p.resolve()
+    return f"/mnt/{p.drive[0].lower()}" + p.as_posix()[2:]
+
+
+WSL_REPO = wsl_path(ROOT)
+_venvs = None
+
+
+def venvs() -> str:
+    """Where the baseline venvs live inside WSL: $QSIM_BASELINES, else ~/gpu-qsim-baselines."""
+    global _venvs
+    if _venvs is None:
+        _venvs = os.environ.get("QSIM_BASELINES") or subprocess.run(
+            ["wsl", "-d", WSL_DISTRO, "--", "printenv", "HOME"], capture_output=True, text=True,
+            check=True).stdout.strip() + "/gpu-qsim-baselines"
+    return _venvs
 ALL_BACKENDS = ["qsim", "qsim-fused", "custatevec", "aer-gpu-cusv", "aer-gpu", "aer-cpu"]
 
 
@@ -53,7 +73,7 @@ def run_qsim(path: Path, precision: str, fuse: int) -> float:
 def run_wsl(backend: str, path: Path, precision: str) -> float:
     venv = ".venv-cusv" if backend == "custatevec" else ".venv-aer"
     rel = path.relative_to(ROOT).as_posix()
-    cmd = ["wsl", "-d", "Ubuntu-24.04", "--cd", WSL_REPO, "--", f"{VENVS}/{venv}/bin/python",
+    cmd = ["wsl", "-d", WSL_DISTRO, "--cd", WSL_REPO, "--", f"{venvs()}/{venv}/bin/python",
            "bench/baselines_wsl.py", "--backend", backend, "--circuit", rel, "--precision", precision, "--reps", "1"]
     out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
     line = next(l for l in out.splitlines() if l.startswith("{"))

@@ -7,7 +7,7 @@
 #
 # Usage (everything after -Name goes to ncu; use absolute paths, the elevated shell starts elsewhere):
 #   .\tools\ncu-admin.ps1 -Name probe24 --set full --kernel-name regex:"copy_f4|scale_inplace_f4" `
-#       C:\Users\akksh\Claude\gpu-qsim\build\Release\bwprobe.exe 24
+#       (Resolve-Path .\build\Release\bwprobe.exe) 24
 
 param(
   [Parameter(Mandatory)][string]$Name,

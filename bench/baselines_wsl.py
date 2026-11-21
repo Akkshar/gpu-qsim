@@ -3,8 +3,9 @@
     python bench/baselines_wsl.py --backend aer-gpu|aer-gpu-nofuse|aer-cpu|custatevec \
         --circuit bench/circuits/m4/qft24.qc [--precision f32|f64] [--reps 3]
 
-Venvs (see PLAN.md, Toolchain): Aer backends run in ~/gpu-qsim-baselines/.venv-aer, cuStateVec in
-~/gpu-qsim-baselines/.venv-cusv (they need different cuQuantum builds).
+Venvs (see docs/dev-notes/PLAN.md, Toolchain): Aer backends run in ~/gpu-qsim-baselines/.venv-aer,
+cuStateVec in ~/gpu-qsim-baselines/.venv-cusv (they need different cuQuantum builds; override the
+location with QSIM_BASELINES when running bench/m4_bench.py).
 
 What's timed (one warm-up run first, not counted):
   aer-*       Aer's own experiment time (result.results[0].time_taken): state init + simulation,

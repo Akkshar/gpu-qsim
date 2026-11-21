@@ -1,5 +1,7 @@
 # gpu-qsim
 
+[![CI](https://github.com/Akkshar/gpu-qsim/actions/workflows/ci.yml/badge.svg)](https://github.com/Akkshar/gpu-qsim/actions/workflows/ci.yml)
+
 A state-vector quantum circuit simulator in C++20 and CUDA, built from scratch, optimised with
 Nsight Compute, and benchmarked against Qiskit Aer and NVIDIA cuStateVec.
 
@@ -128,7 +130,7 @@ python/         nanobind bindings (src/) and the qsim package
 tests/          Catch2 suites, qiskit_check.py (random circuits vs Qiskit), test_python.py
 bench/          circuit generators, sweeps, fusion A/B, M4 benchmark vs Aer/cuStateVec, plots
 docs/           charts and full benchmark tables
-BENCH.md        measurement log, PLAN.md the original plan
+BENCH.md        measurement log; docs/dev-notes/ the original plan and working notes
 ```
 
 ## Limitations
