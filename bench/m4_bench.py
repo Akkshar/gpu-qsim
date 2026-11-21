@@ -79,6 +79,7 @@ def main() -> int:
     results["meta"] = {"precision": args.precision, "fuse": args.fuse, "fuse_mode": "best", "rounds": args.rounds,
                        "date": time.strftime("%Y-%m-%d %H:%M")}
     backends = args.backends.split(",")
+    results["meta"]["gpu_before"] = circuits.gpu_preflight("before")
 
     for fam in args.families.split(","):
         for n in [int(x) for x in args.qubits.split(",")]:
@@ -109,6 +110,8 @@ def main() -> int:
             out.write_text(json.dumps(results, indent=1))
             summary = "  ".join(f"{b} {sorted(t)[len(t) // 2]:.1f}" for b, t in times.items() if t)
             print(f"{fam:8} n={n:2}  {len(lines) - 1:5} gates  {summary}", flush=True)
+    results["meta"]["gpu_after"] = circuits.gpu_preflight("after")
+    out.write_text(json.dumps(results, indent=1))
     print(f"saved {out}")
     return 0
 

@@ -64,7 +64,8 @@ circuits, so differences under ~10% in a 3-round A/B aren't meaningful.
 > **Contaminated run, discarded (2026-11-20 18:42):** the first A/B of this change ran while a game
 > (Ghost of Tsushima) was using the GPU: 99% utilisation, 4.3 GB, 86 °C, SM at 945 MHz. Timings were
 > 2–36× off (QFT K=3: 91 s instead of 2.5 s). Only the deterministic op counts from that run are
-> used. Benchmark scripts' wrappers now log GPU memory/temperature and check for the game process.
+> used. `m4_bench.py` and `fusion_bench.py` now snapshot GPU load first (`circuits.gpu_preflight`)
+> and warn if something else is using it; `m4_bench.py` also stores the before/after snapshot in its JSON.
 
 ### M4 re-run with best-of-both fusion, K = 5 (2026-11-21)
 qsim-fused, Aer GPU + cuStateVec, and raw cuStateVec re-run in interleaved rounds (3); other rows

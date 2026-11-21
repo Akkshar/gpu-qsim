@@ -100,6 +100,7 @@ def main() -> int:
               "random": lambda: random_mix(n), "qaoa": lambda: shared.qaoa(n)}
     fuses = [int(x) for x in args.fuse.split(",")]
     OUT.mkdir(parents=True, exist_ok=True)
+    shared.gpu_preflight("before")
 
     if args.ab:
         # This laptop's GPU drifts ~10% between back-to-back runs as it heats up, which is as big as

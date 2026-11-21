@@ -177,6 +177,29 @@ def to_qiskit(lines: list[str]):
     return qc
 
 
+def gpu_preflight(label: str = "") -> dict:
+    """Snapshot GPU load before/after a benchmark and warn if something else is using the GPU.
+
+    A game running on the same GPU once made a whole A/B run 2-36x slow (BENCH.md, M3.4). Idle here is
+    ~1-5% utilisation and ~1.1-1.4 GB used (desktop, browser, Steam client)."""
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,temperature.gpu,clocks.sm",
+             "--format=csv,noheader,nounits"], capture_output=True, text=True, check=True).stdout.strip()
+        util, mem, temp, sm = (float(x) for x in out.split(","))
+    except Exception as e:  # no nvidia-smi: don't block the benchmark
+        print(f"[gpu {label}] nvidia-smi unavailable: {e}", file=sys.stderr)
+        return {}
+    snap = {"util_pct": util, "mem_mib": mem, "temp_c": temp, "sm_mhz": sm}
+    print(f"[gpu {label}] {util:.0f}% busy, {mem:.0f} MiB used, {temp:.0f} C, SM {sm:.0f} MHz", file=sys.stderr)
+    if util > 10 or mem > 2500:
+        print(f"[gpu {label}] WARNING: something else is using the GPU; timings will be unreliable",
+              file=sys.stderr)
+    return snap
+
+
 def write_qc(lines: list[str], path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n")
