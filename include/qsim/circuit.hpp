@@ -14,7 +14,7 @@
 //   rx 0.25 2                parameterised: rx ry rz <theta> q,  u3 <theta> <phi> <lambda> q,
 //                            p <lambda> q  (phase gate diag(1, e^{i lambda}))
 //   cx 0 1                   controls come first, then targets (Qiskit order): cx cy cz ch,
-//                            crz <theta> c t, cp <lambda> c t
+//                            crx/cry/crz <theta> c t, cp <lambda> c t, cu3 <theta> <phi> <lambda> c t
 //   swap 0 2                 ccx c1 c2 t,  cswap c t1 t2
 //   mat 1 0  re im re im re im re im      explicit matrix: mat <k> <k target qubits> <(2^k)^2 complex entries>
 
@@ -44,6 +44,12 @@ struct Circuit {
 
 // Throw std::runtime_error("line N: ...") on malformed input.
 Circuit parse_circuit(std::string_view text);
+
+// OpenQASM 2.0 subset (see src/io/qasm.cpp for what's supported). Errors: "qasm statement N: ...".
+Circuit parse_qasm(std::string_view text);
+bool looks_like_qasm(std::string_view text);  // starts with "OPENQASM" (after comments/whitespace)
+
+// Reads a .qc or OpenQASM file (detected by content, not extension).
 Circuit load_circuit(const std::string& path);
 
 }  // namespace qsim

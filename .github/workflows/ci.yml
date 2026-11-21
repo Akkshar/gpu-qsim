@@ -1,0 +1,49 @@
+# CPU-only CI: GitHub's runners have no NVIDIA GPU, so this builds without CUDA and runs everything
+# that doesn't need one: Catch2 (minus [cuda]), the Qiskit cross-checks and the Python binding tests.
+# GPU tests and benchmarks run locally (see BENCH.md).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux-cpu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python packages
+        run: pip install -r tests/requirements.txt nanobind pytest
+
+      - name: Configure (CUDA off, Python bindings on)
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DQSIM_ENABLE_CUDA=OFF
+          -DQSIM_BUILD_PYTHON=ON -DPython_EXECUTABLE="$(which python)"
+
+      - name: Build
+        run: cmake --build build -j 4
+
+      - name: Unit tests (Catch2)
+        run: ./build/qsim_tests "~[cuda]"
+
+      - name: Cross-check against Qiskit
+        run: |
+          python tests/qiskit_check.py check --circuits 200 --exe build/qsim_cli
+          python tests/qiskit_check.py check --circuits 100 --fuse 4 --seed 2 --exe build/qsim_cli
+          python tests/qiskit_check.py check --circuits 100 --qasm --seed 3 --exe build/qsim_cli
+
+      - name: Python bindings
+        run: python -m pytest tests/test_python.py -q
+
+      - name: Upload failing circuits
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failing-circuits
+          path: tests/failures/
+          if-no-files-found: ignore

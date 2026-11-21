@@ -15,7 +15,9 @@
 
 #include "qsim/circuit.hpp"
 #include "qsim/cpu_statevector.hpp"
+#ifdef QSIM_HAS_CUDA
 #include "qsim/cuda_statevector.hpp"
+#endif
 #include "qsim/fusion.hpp"
 
 using qsim::Circuit;
@@ -200,6 +202,7 @@ TEST_CASE("fused blocks never touch more than K qubits", "[fusion]") {
   CHECK_THROWS(qsim::fuse_circuit(c, 7));
 }
 
+#ifdef QSIM_HAS_CUDA
 TEMPLATE_TEST_CASE("GPU runs fused circuits correctly", "[fusion][cuda]", float, double) {
   const double tol = std::is_same_v<TestType, float> ? 1e-4 : 1e-11;
   for (unsigned seed = 1; seed <= 4; ++seed) {
@@ -217,3 +220,4 @@ TEMPLATE_TEST_CASE("GPU runs fused circuits correctly", "[fusion][cuda]", float,
     }
   }
 }
+#endif  // QSIM_HAS_CUDA

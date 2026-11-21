@@ -25,7 +25,8 @@ const std::unordered_map<std::string, GateSpec>& gate_table() {
       {"h", {0, 1, 0}},    {"x", {0, 1, 0}},    {"y", {0, 1, 0}},   {"z", {0, 1, 0}},
       {"s", {0, 1, 0}},    {"sdg", {0, 1, 0}},  {"t", {0, 1, 0}},   {"tdg", {0, 1, 0}},
       {"rx", {1, 1, 0}},   {"ry", {1, 1, 0}},   {"rz", {1, 1, 0}},  {"u3", {3, 1, 0}},
-      {"p", {1, 1, 0}},    {"cp", {1, 1, 1}},
+      {"p", {1, 1, 0}},    {"cp", {1, 1, 1}},   {"crx", {1, 1, 1}}, {"cry", {1, 1, 1}},
+      {"cu3", {3, 1, 1}},
       {"swap", {0, 2, 0}}, {"cx", {0, 1, 1}},   {"cy", {0, 1, 1}},  {"cz", {0, 1, 1}},
       {"ch", {0, 1, 1}},   {"crz", {1, 1, 1}},  {"ccx", {0, 1, 2}}, {"cswap", {0, 2, 1}},
   };
@@ -180,7 +181,8 @@ Circuit load_circuit(const std::string& path) {
   std::ostringstream ss;
   ss << f.rdbuf();
   try {
-    return parse_circuit(ss.str());
+    const std::string text = ss.str();
+    return looks_like_qasm(text) ? parse_qasm(text) : parse_circuit(text);
   } catch (const std::runtime_error& e) {
     throw std::runtime_error(path + ": " + e.what());
   }

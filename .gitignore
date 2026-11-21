@@ -5,6 +5,9 @@ profiles/
 *.nsys-rep
 .venv/
 __pycache__/
+.pytest_cache/
+python/qsim/_qsim*.pyd
+python/qsim/_qsim*.so
 bench/results/
 bench/circuits/
 tests/failures/

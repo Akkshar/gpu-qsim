@@ -36,7 +36,7 @@ def num(x: float) -> str:
     return repr(float(x))  # shortest string that round-trips exactly
 
 
-def random_ops(n: int, depth: int, rng: random.Random, with_qiskit: bool):
+def random_ops(n: int, depth: int, rng: random.Random, with_qiskit: bool, allow_mat: bool = True):
     """Yield (qc_or_None, text lines). Builds the Qiskit circuit in step when with_qiskit is set."""
     qc = None
     if with_qiskit:
@@ -47,7 +47,7 @@ def random_ops(n: int, depth: int, rng: random.Random, with_qiskit: bool):
 
     kinds = ["fixed", "rot", "u3"]
     if n >= 2:
-        kinds += ["ctrl", "crz", "swap", "mat"]
+        kinds += ["ctrl", "crz", "swap"] + (["mat"] if allow_mat else [])
     if n >= 3:
         kinds += ["ccx", "cswap"]
 
@@ -132,9 +132,17 @@ def cmd_check(args) -> int:
         for i in range(args.circuits):
             n = rng.randint(1, args.max_qubits)
             depth = rng.randint(args.min_depth, args.max_depth)
-            qc, lines = random_ops(n, depth, rng, with_qiskit=True)
-            qc_path, dump = Path(tmp) / f"c{i}.qc", Path(tmp) / f"c{i}.bin"
-            qc_path.write_text("\n".join(lines) + "\n")
+            qc, lines = random_ops(n, depth, rng, with_qiskit=True, allow_mat=not args.qasm)
+            dump = Path(tmp) / f"c{i}.bin"
+            if args.qasm:  # feed qsim Qiskit's own OpenQASM 2 export instead of the .qc text
+                from qiskit import qasm2
+
+                qc_path = Path(tmp) / f"c{i}.qasm"
+                qc_path.write_text(qasm2.dumps(qc))
+                lines = qc_path.read_text().splitlines()
+            else:
+                qc_path = Path(tmp) / f"c{i}.qc"
+                qc_path.write_text("\n".join(lines) + "\n")
 
             cmd = [str(exe), str(qc_path), f"--{args.precision}", "--dump", str(dump)]
             if args.backend == "gpu":
@@ -163,11 +171,11 @@ def cmd_check(args) -> int:
                 failures.append((i, n, depth, f"max |amp diff| = {diff:.3e} (tol {tol:g})", lines))
 
     for i, n, depth, why, lines in failures[:10]:
-        path = FAIL_DIR / f"fail_{args.seed}_{i}.qc"
+        path = FAIL_DIR / f"fail_{args.seed}_{i}.{'qasm' if args.qasm else 'qc'}"
         path.write_text("\n".join(lines) + "\n")
         print(f"FAIL circuit {i}: {n} qubits, {depth} ops: {why}\n     saved to {path}")
     passed = args.circuits - len(failures)
-    fused = (f", fuse {args.fuse}" if args.fuse else "") + (f", kernel {args.kernel}" if args.backend == "gpu" else "")
+    fused = (" qasm" if args.qasm else "") + (f", fuse {args.fuse}" if args.fuse else "") + (f", kernel {args.kernel}" if args.backend == "gpu" else "")
     print(f"{passed}/{args.circuits} passed ({args.backend}, {args.precision}{fused}, seed {args.seed}); "
           f"worst max |amp diff| {worst:.2e}")
     return 0 if not failures else 1
@@ -195,6 +203,7 @@ def main() -> int:
     c.add_argument("--seed", type=int, default=1)
     c.add_argument("--backend", choices=["cpu", "gpu"], default="cpu")
     c.add_argument("--fuse", type=int, default=0, help="pass --fuse K to qsim_cli (0 = off)")
+    c.add_argument("--qasm", action="store_true", help="give qsim Qiskit's OpenQASM 2 export (no `mat` gates)")
     c.add_argument("--kernel", choices=["auto", "shuffle", "direct"], default="auto", help="GPU kernel for 2-5 target ops")
     c.add_argument("--exe", default=str(DEFAULT_EXE))
 
