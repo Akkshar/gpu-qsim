@@ -16,42 +16,6 @@
    "family": "qft",
    "qubits": 16,
    "gates": 144,
-   "backend": "qsim-fused",
-   "ms": [
-    0.9,
-    0.899,
-    0.901
-   ],
-   "median_ms": 0.9
-  },
-  {
-   "family": "qft",
-   "qubits": 16,
-   "gates": 144,
-   "backend": "custatevec",
-   "ms": [
-    1.2124160528182983,
-    1.257472038269043,
-    1.4090240001678467
-   ],
-   "median_ms": 1.257472038269043
-  },
-  {
-   "family": "qft",
-   "qubits": 16,
-   "gates": 144,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    5.846665,
-    5.82763,
-    5.487147
-   ],
-   "median_ms": 5.82763
-  },
-  {
-   "family": "qft",
-   "qubits": 16,
-   "gates": 144,
    "backend": "aer-gpu",
    "ms": [
     5.151168999999999,
@@ -83,42 +47,6 @@
     6.09
    ],
    "median_ms": 6.09
-  },
-  {
-   "family": "qft",
-   "qubits": 20,
-   "gates": 220,
-   "backend": "qsim-fused",
-   "ms": [
-    4.331,
-    4.324,
-    4.325
-   ],
-   "median_ms": 4.325
-  },
-  {
-   "family": "qft",
-   "qubits": 20,
-   "gates": 220,
-   "backend": "custatevec",
-   "ms": [
-    6.166528224945068,
-    6.156288146972656,
-    5.980095863342285
-   ],
-   "median_ms": 6.156288146972656
-  },
-  {
-   "family": "qft",
-   "qubits": 20,
-   "gates": 220,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    9.419702000000001,
-    10.436113,
-    10.091358
-   ],
-   "median_ms": 10.091358
   },
   {
    "family": "qft",
@@ -160,42 +88,6 @@
    "family": "qft",
    "qubits": 24,
    "gates": 312,
-   "backend": "qsim-fused",
-   "ms": [
-    78.808,
-    78.75,
-    78.783
-   ],
-   "median_ms": 78.783
-  },
-  {
-   "family": "qft",
-   "qubits": 24,
-   "gates": 312,
-   "backend": "custatevec",
-   "ms": [
-    131.04946899414062,
-    131.0800323486328,
-    131.10067749023438
-   ],
-   "median_ms": 131.0800323486328
-  },
-  {
-   "family": "qft",
-   "qubits": 24,
-   "gates": 312,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    79.529359,
-    80.423344,
-    79.393316
-   ],
-   "median_ms": 79.529359
-  },
-  {
-   "family": "qft",
-   "qubits": 24,
-   "gates": 312,
    "backend": "aer-gpu",
    "ms": [
     401.504952,
@@ -227,42 +119,6 @@
     609.494
    ],
    "median_ms": 609.49
-  },
-  {
-   "family": "qft",
-   "qubits": 26,
-   "gates": 364,
-   "backend": "qsim-fused",
-   "ms": [
-    371.749,
-    371.803,
-    371.807
-   ],
-   "median_ms": 371.803
-  },
-  {
-   "family": "qft",
-   "qubits": 26,
-   "gates": 364,
-   "backend": "custatevec",
-   "ms": [
-    602.717041015625,
-    602.6629028320312,
-    602.5901489257812
-   ],
-   "median_ms": 602.6629028320312
-  },
-  {
-   "family": "qft",
-   "qubits": 26,
-   "gates": 364,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    343.79337300000003,
-    343.50122500000003,
-    343.73724500000003
-   ],
-   "median_ms": 343.73724500000003
   },
   {
    "family": "qft",
@@ -301,42 +157,6 @@
    "median_ms": 2792.914
   },
   {
-   "family": "qft",
-   "qubits": 28,
-   "gates": 420,
-   "backend": "qsim-fused",
-   "ms": [
-    1709.976,
-    1711.205,
-    1712.627
-   ],
-   "median_ms": 1711.205
-  },
-  {
-   "family": "qft",
-   "qubits": 28,
-   "gates": 420,
-   "backend": "custatevec",
-   "ms": [
-    2758.11328125,
-    2757.695556640625,
-    2757.452880859375
-   ],
-   "median_ms": 2757.695556640625
-  },
-  {
-   "family": "qft",
-   "qubits": 28,
-   "gates": 420,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    1544.7831620000002,
-    1550.2834990000001,
-    1551.908694
-   ],
-   "median_ms": 1550.2834990000001
-  },
-  {
    "family": "layered",
    "qubits": 16,
    "gates": 470,
@@ -347,42 +167,6 @@
     3.755
    ],
    "median_ms": 3.755
-  },
-  {
-   "family": "layered",
-   "qubits": 16,
-   "gates": 470,
-   "backend": "qsim-fused",
-   "ms": [
-    2.334,
-    3.567,
-    3.321
-   ],
-   "median_ms": 3.321
-  },
-  {
-   "family": "layered",
-   "qubits": 16,
-   "gates": 470,
-   "backend": "custatevec",
-   "ms": [
-    4.320256233215332,
-    3.7273600101470947,
-    4.223999977111816
-   ],
-   "median_ms": 4.223999977111816
-  },
-  {
-   "family": "layered",
-   "qubits": 16,
-   "gates": 470,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    7.325913,
-    7.088024,
-    6.992260999999999
-   ],
-   "median_ms": 7.088024
   },
   {
    "family": "layered",
@@ -424,42 +208,6 @@
    "family": "layered",
    "qubits": 20,
    "gates": 590,
-   "backend": "qsim-fused",
-   "ms": [
-    13.747,
-    11.246,
-    11.094
-   ],
-   "median_ms": 11.246
-  },
-  {
-   "family": "layered",
-   "qubits": 20,
-   "gates": 590,
-   "backend": "custatevec",
-   "ms": [
-    25.546688079833984,
-    25.554943084716797,
-    25.585664749145508
-   ],
-   "median_ms": 25.554943084716797
-  },
-  {
-   "family": "layered",
-   "qubits": 20,
-   "gates": 590,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    12.512264,
-    12.693731,
-    13.124523
-   ],
-   "median_ms": 12.693731
-  },
-  {
-   "family": "layered",
-   "qubits": 20,
-   "gates": 590,
    "backend": "aer-gpu",
    "ms": [
     118.33537600000001,
@@ -491,42 +239,6 @@
     459.818
    ],
    "median_ms": 459.818
-  },
-  {
-   "family": "layered",
-   "qubits": 24,
-   "gates": 710,
-   "backend": "qsim-fused",
-   "ms": [
-    191.302,
-    190.558,
-    189.327
-   ],
-   "median_ms": 190.558
-  },
-  {
-   "family": "layered",
-   "qubits": 24,
-   "gates": 710,
-   "backend": "custatevec",
-   "ms": [
-    452.9879150390625,
-    453.00634765625,
-    453.0043029785156
-   ],
-   "median_ms": 453.0043029785156
-  },
-  {
-   "family": "layered",
-   "qubits": 24,
-   "gates": 710,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    103.84135,
-    107.65240800000001,
-    104.97994200000001
-   ],
-   "median_ms": 104.97994200000001
   },
   {
    "family": "layered",
@@ -568,42 +280,6 @@
    "family": "layered",
    "qubits": 26,
    "gates": 770,
-   "backend": "qsim-fused",
-   "ms": [
-    798.476,
-    789.06,
-    789.312
-   ],
-   "median_ms": 789.312
-  },
-  {
-   "family": "layered",
-   "qubits": 26,
-   "gates": 770,
-   "backend": "custatevec",
-   "ms": [
-    1951.1121826171875,
-    1950.855224609375,
-    1950.98828125
-   ],
-   "median_ms": 1950.98828125
-  },
-  {
-   "family": "layered",
-   "qubits": 26,
-   "gates": 770,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    422.434007,
-    424.02611,
-    423.46236799999997
-   ],
-   "median_ms": 423.46236799999997
-  },
-  {
-   "family": "layered",
-   "qubits": 26,
-   "gates": 770,
    "backend": "aer-gpu",
    "ms": [
     7610.559916,
@@ -637,42 +313,6 @@
    "median_ms": 8527.025
   },
   {
-   "family": "layered",
-   "qubits": 28,
-   "gates": 830,
-   "backend": "qsim-fused",
-   "ms": [
-    4062.692,
-    4528.607,
-    4592.437
-   ],
-   "median_ms": 4528.607
-  },
-  {
-   "family": "layered",
-   "qubits": 28,
-   "gates": 830,
-   "backend": "custatevec",
-   "ms": [
-    8387.1318359375,
-    8381.6669921875,
-    8374.001953125
-   ],
-   "median_ms": 8381.6669921875
-  },
-  {
-   "family": "layered",
-   "qubits": 28,
-   "gates": 830,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    1781.5855840000002,
-    1778.2640039999999,
-    1783.4328170000001
-   ],
-   "median_ms": 1781.5855840000002
-  },
-  {
    "family": "qaoa",
    "qubits": 16,
    "gates": 144,
@@ -683,42 +323,6 @@
     1.156
    ],
    "median_ms": 1.212
-  },
-  {
-   "family": "qaoa",
-   "qubits": 16,
-   "gates": 144,
-   "backend": "qsim-fused",
-   "ms": [
-    0.409,
-    0.459,
-    0.457
-   ],
-   "median_ms": 0.457
-  },
-  {
-   "family": "qaoa",
-   "qubits": 16,
-   "gates": 144,
-   "backend": "custatevec",
-   "ms": [
-    1.572864055633545,
-    1.9169280529022217,
-    1.0895359516143799
-   ],
-   "median_ms": 1.572864055633545
-  },
-  {
-   "family": "qaoa",
-   "qubits": 16,
-   "gates": 144,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    4.372676,
-    6.42392,
-    4.462149999999999
-   ],
-   "median_ms": 4.462149999999999
   },
   {
    "family": "qaoa",
@@ -760,42 +364,6 @@
    "family": "qaoa",
    "qubits": 20,
    "gates": 180,
-   "backend": "qsim-fused",
-   "ms": [
-    2.089,
-    2.079,
-    2.063
-   ],
-   "median_ms": 2.079
-  },
-  {
-   "family": "qaoa",
-   "qubits": 20,
-   "gates": 180,
-   "backend": "custatevec",
-   "ms": [
-    7.323647975921631,
-    7.29804801940918,
-    7.365632057189941
-   ],
-   "median_ms": 7.323647975921631
-  },
-  {
-   "family": "qaoa",
-   "qubits": 20,
-   "gates": 180,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    6.220216,
-    6.271565,
-    7.069981
-   ],
-   "median_ms": 6.271565
-  },
-  {
-   "family": "qaoa",
-   "qubits": 20,
-   "gates": 180,
    "backend": "aer-gpu",
    "ms": [
     35.056394,
@@ -827,42 +395,6 @@
     130.765
    ],
    "median_ms": 130.868
-  },
-  {
-   "family": "qaoa",
-   "qubits": 24,
-   "gates": 216,
-   "backend": "qsim-fused",
-   "ms": [
-    25.947,
-    25.972,
-    25.893
-   ],
-   "median_ms": 25.947
-  },
-  {
-   "family": "qaoa",
-   "qubits": 24,
-   "gates": 216,
-   "backend": "custatevec",
-   "ms": [
-    128.7720947265625,
-    128.88575744628906,
-    128.91952514648438
-   ],
-   "median_ms": 128.88575744628906
-  },
-  {
-   "family": "qaoa",
-   "qubits": 24,
-   "gates": 216,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    29.856022,
-    30.982205,
-    30.360496
-   ],
-   "median_ms": 30.360496
   },
   {
    "family": "qaoa",
@@ -904,42 +436,6 @@
    "family": "qaoa",
    "qubits": 26,
    "gates": 234,
-   "backend": "qsim-fused",
-   "ms": [
-    115.767,
-    115.531,
-    115.47
-   ],
-   "median_ms": 115.531
-  },
-  {
-   "family": "qaoa",
-   "qubits": 26,
-   "gates": 234,
-   "backend": "custatevec",
-   "ms": [
-    554.1304321289062,
-    554.1304321289062,
-    554.0884399414062
-   ],
-   "median_ms": 554.1304321289062
-  },
-  {
-   "family": "qaoa",
-   "qubits": 26,
-   "gates": 234,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    116.557432,
-    115.731186,
-    119.266126
-   ],
-   "median_ms": 116.557432
-  },
-  {
-   "family": "qaoa",
-   "qubits": 26,
-   "gates": 234,
    "backend": "aer-gpu",
    "ms": [
     1597.065092,
@@ -973,42 +469,6 @@
    "median_ms": 2414.693
   },
   {
-   "family": "qaoa",
-   "qubits": 28,
-   "gates": 252,
-   "backend": "qsim-fused",
-   "ms": [
-    500.116,
-    501.518,
-    516.992
-   ],
-   "median_ms": 501.518
-  },
-  {
-   "family": "qaoa",
-   "qubits": 28,
-   "gates": 252,
-   "backend": "custatevec",
-   "ms": [
-    2380.690185546875,
-    2380.47119140625,
-    2379.525146484375
-   ],
-   "median_ms": 2380.47119140625
-  },
-  {
-   "family": "qaoa",
-   "qubits": 28,
-   "gates": 252,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    459.118868,
-    462.07417200000003,
-    460.739735
-   ],
-   "median_ms": 460.739735
-  },
-  {
    "family": "ghz",
    "qubits": 16,
    "gates": 16,
@@ -1019,42 +479,6 @@
     0.147
    ],
    "median_ms": 0.12
-  },
-  {
-   "family": "ghz",
-   "qubits": 16,
-   "gates": 16,
-   "backend": "qsim-fused",
-   "ms": [
-    0.083,
-    0.115,
-    0.116
-   ],
-   "median_ms": 0.115
-  },
-  {
-   "family": "ghz",
-   "qubits": 16,
-   "gates": 16,
-   "backend": "custatevec",
-   "ms": [
-    0.2099200040102005,
-    0.31334400177001953,
-    0.15564799308776855
-   ],
-   "median_ms": 0.2099200040102005
-  },
-  {
-   "family": "ghz",
-   "qubits": 16,
-   "gates": 16,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    3.299457,
-    4.221804,
-    3.405553
-   ],
-   "median_ms": 3.405553
   },
   {
    "family": "ghz",
@@ -1096,42 +520,6 @@
    "family": "ghz",
    "qubits": 20,
    "gates": 20,
-   "backend": "qsim-fused",
-   "ms": [
-    0.489,
-    0.491,
-    0.489
-   ],
-   "median_ms": 0.489
-  },
-  {
-   "family": "ghz",
-   "qubits": 20,
-   "gates": 20,
-   "backend": "custatevec",
-   "ms": [
-    0.6420480012893677,
-    0.5928959846496582,
-    0.6041280031204224
-   ],
-   "median_ms": 0.6041280031204224
-  },
-  {
-   "family": "ghz",
-   "qubits": 20,
-   "gates": 20,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    4.775320000000001,
-    6.2939099999999994,
-    4.560074
-   ],
-   "median_ms": 4.775320000000001
-  },
-  {
-   "family": "ghz",
-   "qubits": 20,
-   "gates": 20,
    "backend": "aer-gpu",
    "ms": [
     17.24107,
@@ -1163,42 +551,6 @@
     10.283
    ],
    "median_ms": 10.283
-  },
-  {
-   "family": "ghz",
-   "qubits": 24,
-   "gates": 24,
-   "backend": "qsim-fused",
-   "ms": [
-    6.321,
-    6.311,
-    6.108
-   ],
-   "median_ms": 6.311
-  },
-  {
-   "family": "ghz",
-   "qubits": 24,
-   "gates": 24,
-   "backend": "custatevec",
-   "ms": [
-    10.376192092895508,
-    10.287103652954102,
-    10.151935577392578
-   ],
-   "median_ms": 10.287103652954102
-  },
-  {
-   "family": "ghz",
-   "qubits": 24,
-   "gates": 24,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    22.308494000000003,
-    22.077809000000002,
-    22.455188
-   ],
-   "median_ms": 22.308494000000003
   },
   {
    "family": "ghz",
@@ -1240,42 +592,6 @@
    "family": "ghz",
    "qubits": 26,
    "gates": 26,
-   "backend": "qsim-fused",
-   "ms": [
-    26.043,
-    26.032,
-    25.98
-   ],
-   "median_ms": 26.032
-  },
-  {
-   "family": "ghz",
-   "qubits": 26,
-   "gates": 26,
-   "backend": "custatevec",
-   "ms": [
-    43.205631256103516,
-    43.38995361328125,
-    43.26377487182617
-   ],
-   "median_ms": 43.26377487182617
-  },
-  {
-   "family": "ghz",
-   "qubits": 26,
-   "gates": 26,
-   "backend": "aer-gpu-cusv",
-   "ms": [
-    69.55314,
-    70.34425599999999,
-    69.72901900000001
-   ],
-   "median_ms": 69.72901900000001
-  },
-  {
-   "family": "ghz",
-   "qubits": 26,
-   "gates": 26,
    "backend": "aer-gpu",
    "ms": [
     766.742215,
@@ -1309,28 +625,700 @@
    "median_ms": 187.275
   },
   {
-   "family": "ghz",
-   "qubits": 28,
-   "gates": 28,
+   "family": "qft",
+   "qubits": 16,
+   "gates": 144,
    "backend": "qsim-fused",
    "ms": [
-    111.225,
-    111.198,
-    111.1
+    1.24,
+    1.244,
+    1.22
    ],
-   "median_ms": 111.198
+   "median_ms": 1.24
+  },
+  {
+   "family": "qft",
+   "qubits": 16,
+   "gates": 144,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    6.783244,
+    6.033097000000001,
+    5.8326649999999995
+   ],
+   "median_ms": 6.033097000000001
+  },
+  {
+   "family": "qft",
+   "qubits": 16,
+   "gates": 144,
+   "backend": "custatevec",
+   "ms": [
+    1.481727957725525,
+    1.696768045425415,
+    2.170880079269409
+   ],
+   "median_ms": 1.696768045425415
+  },
+  {
+   "family": "qft",
+   "qubits": 20,
+   "gates": 220,
+   "backend": "qsim-fused",
+   "ms": [
+    5.403,
+    5.349,
+    5.354
+   ],
+   "median_ms": 5.354
+  },
+  {
+   "family": "qft",
+   "qubits": 20,
+   "gates": 220,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    11.265673,
+    11.116969000000001,
+    9.98456
+   ],
+   "median_ms": 11.116969000000001
+  },
+  {
+   "family": "qft",
+   "qubits": 20,
+   "gates": 220,
+   "backend": "custatevec",
+   "ms": [
+    6.622208118438721,
+    7.4792962074279785,
+    6.1972479820251465
+   ],
+   "median_ms": 6.622208118438721
+  },
+  {
+   "family": "qft",
+   "qubits": 24,
+   "gates": 312,
+   "backend": "qsim-fused",
+   "ms": [
+    65.167,
+    60.963,
+    59.822
+   ],
+   "median_ms": 60.963
+  },
+  {
+   "family": "qft",
+   "qubits": 24,
+   "gates": 312,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    83.051805,
+    80.841683,
+    79.491883
+   ],
+   "median_ms": 80.841683
+  },
+  {
+   "family": "qft",
+   "qubits": 24,
+   "gates": 312,
+   "backend": "custatevec",
+   "ms": [
+    130.91635131835938,
+    132.37344360351562,
+    131.80313110351562
+   ],
+   "median_ms": 131.80313110351562
+  },
+  {
+   "family": "qft",
+   "qubits": 26,
+   "gates": 364,
+   "backend": "qsim-fused",
+   "ms": [
+    276.053,
+    322.059,
+    303.118
+   ],
+   "median_ms": 303.118
+  },
+  {
+   "family": "qft",
+   "qubits": 26,
+   "gates": 364,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    374.98249,
+    353.457501,
+    349.298933
+   ],
+   "median_ms": 353.457501
+  },
+  {
+   "family": "qft",
+   "qubits": 26,
+   "gates": 364,
+   "backend": "custatevec",
+   "ms": [
+    618.9414672851562,
+    645.5458984375,
+    619.1861572265625
+   ],
+   "median_ms": 619.1861572265625
+  },
+  {
+   "family": "qft",
+   "qubits": 28,
+   "gates": 420,
+   "backend": "qsim-fused",
+   "ms": [
+    1290.145,
+    1415.331,
+    1472.043
+   ],
+   "median_ms": 1415.331
+  },
+  {
+   "family": "qft",
+   "qubits": 28,
+   "gates": 420,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    1598.00045,
+    1583.113554,
+    1645.254818
+   ],
+   "median_ms": 1598.00045
+  },
+  {
+   "family": "qft",
+   "qubits": 28,
+   "gates": 420,
+   "backend": "custatevec",
+   "ms": [
+    2850.07470703125,
+    2829.22607421875,
+    2934.3037109375
+   ],
+   "median_ms": 2850.07470703125
+  },
+  {
+   "family": "layered",
+   "qubits": 16,
+   "gates": 470,
+   "backend": "qsim-fused",
+   "ms": [
+    1.334,
+    2.176,
+    2.18
+   ],
+   "median_ms": 2.176
+  },
+  {
+   "family": "layered",
+   "qubits": 16,
+   "gates": 470,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    8.377272999999999,
+    8.138793,
+    8.99301
+   ],
+   "median_ms": 8.377272999999999
+  },
+  {
+   "family": "layered",
+   "qubits": 16,
+   "gates": 470,
+   "backend": "custatevec",
+   "ms": [
+    5.017600059509277,
+    5.781504154205322,
+    6.731776237487793
+   ],
+   "median_ms": 5.781504154205322
+  },
+  {
+   "family": "layered",
+   "qubits": 20,
+   "gates": 590,
+   "backend": "qsim-fused",
+   "ms": [
+    12.274,
+    10.659,
+    9.411
+   ],
+   "median_ms": 10.659
+  },
+  {
+   "family": "layered",
+   "qubits": 20,
+   "gates": 590,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    13.232410999999999,
+    14.438946,
+    13.530838999999999
+   ],
+   "median_ms": 13.530838999999999
+  },
+  {
+   "family": "layered",
+   "qubits": 20,
+   "gates": 590,
+   "backend": "custatevec",
+   "ms": [
+    25.753599166870117,
+    25.825279235839844,
+    25.84569549560547
+   ],
+   "median_ms": 25.825279235839844
+  },
+  {
+   "family": "layered",
+   "qubits": 24,
+   "gates": 710,
+   "backend": "qsim-fused",
+   "ms": [
+    58.886,
+    51.38,
+    51.436
+   ],
+   "median_ms": 51.436
+  },
+  {
+   "family": "layered",
+   "qubits": 24,
+   "gates": 710,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    107.235121,
+    106.405091,
+    103.890079
+   ],
+   "median_ms": 106.405091
+  },
+  {
+   "family": "layered",
+   "qubits": 24,
+   "gates": 710,
+   "backend": "custatevec",
+   "ms": [
+    454.6037902832031,
+    453.349365234375,
+    451.66387939453125
+   ],
+   "median_ms": 453.349365234375
+  },
+  {
+   "family": "layered",
+   "qubits": 26,
+   "gates": 770,
+   "backend": "qsim-fused",
+   "ms": [
+    218.75,
+    262.772,
+    242.336
+   ],
+   "median_ms": 242.336
+  },
+  {
+   "family": "layered",
+   "qubits": 26,
+   "gates": 770,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    419.140619,
+    418.231442,
+    422.01169799999997
+   ],
+   "median_ms": 419.140619
+  },
+  {
+   "family": "layered",
+   "qubits": 26,
+   "gates": 770,
+   "backend": "custatevec",
+   "ms": [
+    1951.973388671875,
+    1954.1053466796875,
+    1954.1697998046875
+   ],
+   "median_ms": 1954.1053466796875
+  },
+  {
+   "family": "layered",
+   "qubits": 28,
+   "gates": 830,
+   "backend": "qsim-fused",
+   "ms": [
+    1289.532,
+    1475.275,
+    1301.065
+   ],
+   "median_ms": 1301.065
+  },
+  {
+   "family": "layered",
+   "qubits": 28,
+   "gates": 830,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    1782.194838,
+    1848.133757,
+    1852.820333
+   ],
+   "median_ms": 1848.133757
+  },
+  {
+   "family": "layered",
+   "qubits": 28,
+   "gates": 830,
+   "backend": "custatevec",
+   "ms": [
+    8399.6328125,
+    8637.857421875,
+    8630.955078125
+   ],
+   "median_ms": 8630.955078125
+  },
+  {
+   "family": "qaoa",
+   "qubits": 16,
+   "gates": 144,
+   "backend": "qsim-fused",
+   "ms": [
+    0.474,
+    0.769,
+    0.771
+   ],
+   "median_ms": 0.769
+  },
+  {
+   "family": "qaoa",
+   "qubits": 16,
+   "gates": 144,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    3.6009979999999997,
+    4.545211,
+    4.685323
+   ],
+   "median_ms": 4.545211
+  },
+  {
+   "family": "qaoa",
+   "qubits": 16,
+   "gates": 144,
+   "backend": "custatevec",
+   "ms": [
+    1.1110399961471558,
+    1.7469439506530762,
+    1.120255947113037
+   ],
+   "median_ms": 1.120255947113037
+  },
+  {
+   "family": "qaoa",
+   "qubits": 20,
+   "gates": 180,
+   "backend": "qsim-fused",
+   "ms": [
+    5.235,
+    5.237,
+    5.214
+   ],
+   "median_ms": 5.235
+  },
+  {
+   "family": "qaoa",
+   "qubits": 20,
+   "gates": 180,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    7.004619999999999,
+    6.895893,
+    6.700201
+   ],
+   "median_ms": 6.895893
+  },
+  {
+   "family": "qaoa",
+   "qubits": 20,
+   "gates": 180,
+   "backend": "custatevec",
+   "ms": [
+    7.592895984649658,
+    7.428095817565918,
+    7.436287879943848
+   ],
+   "median_ms": 7.436287879943848
+  },
+  {
+   "family": "qaoa",
+   "qubits": 24,
+   "gates": 216,
+   "backend": "qsim-fused",
+   "ms": [
+    26.754,
+    22.977,
+    23.405
+   ],
+   "median_ms": 23.405
+  },
+  {
+   "family": "qaoa",
+   "qubits": 24,
+   "gates": 216,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    34.915261,
+    30.174415,
+    29.898029
+   ],
+   "median_ms": 30.174415
+  },
+  {
+   "family": "qaoa",
+   "qubits": 24,
+   "gates": 216,
+   "backend": "custatevec",
+   "ms": [
+    131.60447692871094,
+    131.87779235839844,
+    131.89529418945312
+   ],
+   "median_ms": 131.87779235839844
+  },
+  {
+   "family": "qaoa",
+   "qubits": 26,
+   "gates": 234,
+   "backend": "qsim-fused",
+   "ms": [
+    100.517,
+    100.695,
+    100.978
+   ],
+   "median_ms": 100.695
+  },
+  {
+   "family": "qaoa",
+   "qubits": 26,
+   "gates": 234,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    112.634754,
+    112.522869,
+    113.379529
+   ],
+   "median_ms": 112.634754
+  },
+  {
+   "family": "qaoa",
+   "qubits": 26,
+   "gates": 234,
+   "backend": "custatevec",
+   "ms": [
+    567.9727172851562,
+    569.975830078125,
+    583.7506713867188
+   ],
+   "median_ms": 569.975830078125
+  },
+  {
+   "family": "qaoa",
+   "qubits": 28,
+   "gates": 252,
+   "backend": "qsim-fused",
+   "ms": [
+    439.048,
+    503.004,
+    538.708
+   ],
+   "median_ms": 503.004
+  },
+  {
+   "family": "qaoa",
+   "qubits": 28,
+   "gates": 252,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    455.872485,
+    455.79787100000004,
+    457.39777100000003
+   ],
+   "median_ms": 455.872485
+  },
+  {
+   "family": "qaoa",
+   "qubits": 28,
+   "gates": 252,
+   "backend": "custatevec",
+   "ms": [
+    2446.17822265625,
+    2452.317138671875,
+    2447.412109375
+   ],
+   "median_ms": 2447.412109375
+  },
+  {
+   "family": "ghz",
+   "qubits": 16,
+   "gates": 16,
+   "backend": "qsim-fused",
+   "ms": [
+    0.261,
+    0.344,
+    0.366
+   ],
+   "median_ms": 0.344
+  },
+  {
+   "family": "ghz",
+   "qubits": 16,
+   "gates": 16,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    3.351555,
+    3.8823730000000003,
+    5.003347
+   ],
+   "median_ms": 3.8823730000000003
+  },
+  {
+   "family": "ghz",
+   "qubits": 16,
+   "gates": 16,
+   "backend": "custatevec",
+   "ms": [
+    0.16486400365829468,
+    0.1658879965543747,
+    0.2467840015888214
+   ],
+   "median_ms": 0.1658879965543747
+  },
+  {
+   "family": "ghz",
+   "qubits": 20,
+   "gates": 20,
+   "backend": "qsim-fused",
+   "ms": [
+    2.63,
+    1.564,
+    1.542
+   ],
+   "median_ms": 1.564
+  },
+  {
+   "family": "ghz",
+   "qubits": 20,
+   "gates": 20,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    5.657953,
+    6.717587,
+    5.115155
+   ],
+   "median_ms": 5.657953
+  },
+  {
+   "family": "ghz",
+   "qubits": 20,
+   "gates": 20,
+   "backend": "custatevec",
+   "ms": [
+    0.5754879713058472,
+    0.6000639796257019,
+    0.5939199924468994
+   ],
+   "median_ms": 0.5939199924468994
+  },
+  {
+   "family": "ghz",
+   "qubits": 24,
+   "gates": 24,
+   "backend": "qsim-fused",
+   "ms": [
+    6.712,
+    6.712,
+    6.732
+   ],
+   "median_ms": 6.712
+  },
+  {
+   "family": "ghz",
+   "qubits": 24,
+   "gates": 24,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    22.534869999999998,
+    23.215925,
+    23.632771
+   ],
+   "median_ms": 23.215925
+  },
+  {
+   "family": "ghz",
+   "qubits": 24,
+   "gates": 24,
+   "backend": "custatevec",
+   "ms": [
+    10.103808403015137,
+    10.238975524902344,
+    10.178560256958008
+   ],
+   "median_ms": 10.178560256958008
+  },
+  {
+   "family": "ghz",
+   "qubits": 26,
+   "gates": 26,
+   "backend": "qsim-fused",
+   "ms": [
+    24.785,
+    21.45,
+    21.12
+   ],
+   "median_ms": 21.45
+  },
+  {
+   "family": "ghz",
+   "qubits": 26,
+   "gates": 26,
+   "backend": "aer-gpu-cusv",
+   "ms": [
+    84.350243,
+    69.142971,
+    70.040583
+   ],
+   "median_ms": 70.040583
+  },
+  {
+   "family": "ghz",
+   "qubits": 26,
+   "gates": 26,
+   "backend": "custatevec",
+   "ms": [
+    44.79692840576172,
+    43.16569519042969,
+    44.446720123291016
+   ],
+   "median_ms": 44.446720123291016
   },
   {
    "family": "ghz",
    "qubits": 28,
    "gates": 28,
-   "backend": "custatevec",
+   "backend": "qsim-fused",
    "ms": [
-    184.6402587890625,
-    184.72653198242188,
-    184.59237670898438
+    95.388,
+    92.033,
+    92.041
    ],
-   "median_ms": 184.6402587890625
+   "median_ms": 92.041
   },
   {
    "family": "ghz",
@@ -1338,17 +1326,30 @@
    "gates": 28,
    "backend": "aer-gpu-cusv",
    "ms": [
-    279.302273,
-    280.314088,
-    280.208294
+    278.54533599999996,
+    277.692995,
+    279.78716999999995
    ],
-   "median_ms": 280.208294
+   "median_ms": 278.54533599999996
+  },
+  {
+   "family": "ghz",
+   "qubits": 28,
+   "gates": 28,
+   "backend": "custatevec",
+   "ms": [
+    186.14169311523438,
+    185.75155639648438,
+    187.0446014404297
+   ],
+   "median_ms": 186.14169311523438
   }
  ],
  "meta": {
   "precision": "f32",
-  "fuse": 4,
+  "fuse": 5,
+  "fuse_mode": "best",
   "rounds": 3,
-  "date": "2026-11-20 02:11"
+  "date": "2026-11-21 13:47"
  }
 }

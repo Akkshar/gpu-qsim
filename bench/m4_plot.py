@@ -51,6 +51,9 @@ def style_axes(ax):
 
 def load(path: Path):
     data = json.loads(path.read_text())
+    meta = data["meta"]
+    STYLE["qsim-fused"] = (STYLE["qsim-fused"][0], STYLE["qsim-fused"][1],
+                           f"qsim, fused (K={meta['fuse']}{', ' + meta['fuse_mode'] if 'fuse_mode' in meta else ''})")
     table = {}
     for r in data["runs"]:
         table[(r["family"], r["qubits"], r["backend"])] = r["median_ms"]
@@ -136,7 +139,8 @@ def plot_at_max(table, fams, ns, out: Path):
 
 def tables(data, table, fams, ns) -> str:
     out = [f"Medians in ms ({data['meta']['rounds']} interleaved rounds, {data['meta']['precision']}, "
-           f"qsim-fused = --fuse {data['meta']['fuse']}, {data['meta']['date']})", ""]
+           f"qsim-fused = --fuse {data['meta']['fuse']} {data['meta'].get('fuse_mode', 'inorder')}, "
+           f"{data['meta']['date']})", ""]
     present = [b for b in ORDER if any(k[2] == b for k in table)]
     for fam in fams:
         out.append(f"**{TITLES[fam]}**")

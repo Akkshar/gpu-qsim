@@ -81,20 +81,65 @@ int qubits_touched(const qsim::Op& op) { return op.arity() + static_cast<int>(op
 
 }  // namespace
 
-TEST_CASE("fusion never changes the result", "[fusion]") {
+TEST_CASE("fusion never changes the result (both strategies)", "[fusion]") {
+  using S = qsim::FusionStrategy;
   for (unsigned seed = 1; seed <= 8; ++seed) {
     const auto c = qsim::parse_circuit(circuit_text(8, 120, seed));
     const auto want = run_cpu(c);
-    for (int k = 1; k <= 6; ++k) {
-      const auto f = qsim::fuse_circuit(c, k);
-      CpuStateVector<double> sv(c.num_qubits);
-      sv.run(f);
-      INFO("seed " << seed << ", fuse " << k << ": " << c.ops.size() << " -> " << f.ops.size() << " ops");
-      CHECK(max_diff(want, sv.amps()) < 1e-11);
-      for (const auto& op : f.ops)
-        if (op.name == "fused") CHECK(op.arity() <= k);
+    for (S s : {S::InOrder, S::Commuting, S::Best}) {
+      for (int k = 1; k <= 6; ++k) {
+        const auto f = qsim::fuse_circuit(c, k, s);
+        CpuStateVector<double> sv(c.num_qubits);
+        sv.run(f);
+        INFO("seed " << seed << ", strategy " << static_cast<int>(s) << ", fuse " << k << ": " << c.ops.size()
+                     << " -> " << f.ops.size() << " ops");
+        CHECK(max_diff(want, sv.amps()) < 1e-11);
+        for (const auto& op : f.ops)
+          if (op.name == "fused") CHECK(op.arity() <= k);
+      }
     }
   }
+}
+
+TEST_CASE("commuting fusion is exact on wide, shallow-layer circuits", "[fusion]") {
+  // The case it exists for: layers of 1-qubit gates on every qubit plus neighbour 2-qubit gates.
+  // Many blocks stay open at once; check the result and that it never needs more passes.
+  for (int n : {6, 9, 12}) {
+    std::string t = "qubits " + std::to_string(n) + "\n";
+    for (int layer = 0; layer < 12; ++layer) {
+      for (int q = 0; q < n; ++q)
+        t += "u3 " + num(0.1 * (layer + 1)) + " " + num(0.07 * q) + " " + num(-0.3) + " " + std::to_string(q) + "\n";
+      for (int q = layer % 2; q + 1 < n; q += 2) t += "cz " + std::to_string(q) + " " + std::to_string(q + 1) + "\n";
+      if (layer % 3 == 2) t += "cx " + std::to_string(n - 1) + " 0\n";  // a long-range gate across all blocks
+    }
+    const auto c = qsim::parse_circuit(t);
+    const auto want = run_cpu(c);
+    for (int k = 2; k <= 5; ++k) {
+      const auto fc = qsim::fuse_circuit(c, k, qsim::FusionStrategy::Commuting);
+      const auto fi = qsim::fuse_circuit(c, k, qsim::FusionStrategy::InOrder);
+      CpuStateVector<double> sv(n);
+      sv.run(fc);
+      INFO(n << " qubits, fuse " << k << ": in-order " << fi.ops.size() << " ops, commuting " << fc.ops.size());
+      CHECK(max_diff(want, sv.amps()) < 1e-11);
+      CHECK(fc.ops.size() <= fi.ops.size());
+    }
+  }
+}
+
+TEST_CASE("Best picks the cheaper of the two strategies", "[fusion]") {
+  using S = qsim::FusionStrategy;
+  for (unsigned seed = 1; seed <= 6; ++seed) {
+    const auto c = qsim::parse_circuit(circuit_text(10, 150, seed));
+    for (int k = 2; k <= 5; ++k) {
+      const double best = qsim::pass_cost(qsim::fuse_circuit(c, k, S::Best));
+      const double in = qsim::pass_cost(qsim::fuse_circuit(c, k, S::InOrder));
+      const double co = qsim::pass_cost(qsim::fuse_circuit(c, k, S::Commuting));
+      INFO("seed " << seed << ", fuse " << k << ": in-order " << in << ", commuting " << co << ", best " << best);
+      CHECK(best == std::min(in, co));
+    }
+  }
+  // Cost model: a lone controlled op costs half a pass per control's worth of skipped state.
+  CHECK(qsim::pass_cost(qsim::parse_circuit("qubits 3\nh 0\ncx 0 1\nccx 0 1 2")) == 1.0 + 0.5 + 0.25);
 }
 
 TEST_CASE("fusion merges what it should and leaves the rest alone", "[fusion]") {
@@ -126,18 +171,30 @@ TEST_CASE("fusion merges what it should and leaves the rest alone", "[fusion]") 
   REQUIRE(f.ops.size() == 3);
   CHECK(f.ops[1].name == "ccx");
 
-  // Order preserved: a gate on qubit 1 between two blocks on qubit 0 can't be skipped over.
-  f = fuse_circuit(parse_circuit("qubits 2\nh 0\nx 1\nh 0"), 1);
+  // A gate on qubit 1 between two gates on qubit 0: the in-order strategy can't skip over it...
+  f = fuse_circuit(parse_circuit("qubits 2\nh 0\nx 1\nh 0"), 1, qsim::FusionStrategy::InOrder);
   CHECK(f.ops.size() == 3);
+  // ...the commuting one can (x 1 commutes with h 0): {h 0, h 0} and {x 1}.
+  f = fuse_circuit(parse_circuit("qubits 2\nh 0\nx 1\nh 0"), 1, qsim::FusionStrategy::Commuting);
+  CHECK(f.ops.size() == 2);
+  // Interleaved 1-qubit gates on two qubits: 4 passes in order, 2 commuting.
+  CHECK(fuse_circuit(parse_circuit("qubits 2\nh 0\nh 1\nt 0\nt 1"), 1, qsim::FusionStrategy::InOrder).ops.size() == 4);
+  CHECK(fuse_circuit(parse_circuit("qubits 2\nh 0\nh 1\nt 0\nt 1"), 1, qsim::FusionStrategy::Commuting).ops.size() == 2);
+  // But never across a gate that shares a qubit: cx 0 1 sits between the two h 0's.
+  f = fuse_circuit(parse_circuit("qubits 3\nh 0\ncx 0 1\nh 0\nh 2"), 1, qsim::FusionStrategy::Commuting);
+  REQUIRE(f.ops.size() == 4);
+  CHECK(f.ops[1].name == "cx");
 }
 
 TEST_CASE("fused blocks never touch more than K qubits", "[fusion]") {
   const auto c = qsim::parse_circuit(circuit_text(12, 300, 99));
-  for (int k = 1; k <= 6; ++k) {
-    const auto f = qsim::fuse_circuit(c, k);
-    INFO("fuse " << k);
-    for (const auto& op : f.ops) CHECK((op.name != "fused" || qubits_touched(op) <= k));
-    CHECK(f.ops.size() <= c.ops.size());
+  for (auto s : {qsim::FusionStrategy::InOrder, qsim::FusionStrategy::Commuting}) {
+    for (int k = 1; k <= 6; ++k) {
+      const auto f = qsim::fuse_circuit(c, k, s);
+      INFO("fuse " << k << ", strategy " << static_cast<int>(s));
+      for (const auto& op : f.ops) CHECK((op.name != "fused" || qubits_touched(op) <= k));
+      CHECK(f.ops.size() <= c.ops.size());
+    }
   }
   CHECK_THROWS(qsim::fuse_circuit(c, 0));
   CHECK_THROWS(qsim::fuse_circuit(c, 7));

@@ -78,10 +78,111 @@ Op fuse_block(const std::vector<const Op*>& block, const std::vector<int>& qs) {
 
 }  // namespace
 
-Circuit fuse_circuit(const Circuit& c, int max_qubits) {
+namespace {
+
+Op emit_block(const std::vector<const Op*>& ops, const std::vector<int>& qs) {
+  return ops.size() == 1 ? *ops[0] : fuse_block(ops, qs);
+}
+
+// Commutation-aware fusion (M3.4). Keeps several open blocks on pairwise-disjoint qubit sets; a gate
+// joins (and if needed merges) the open blocks it touches as long as the union stays <= K qubits.
+// Gates on disjoint qubits commute, so letting unrelated blocks stay open while others grow is exact.
+// Invariant: for every qubit, the blocks that touch it are emitted in input order (a block is only
+// closed when a later gate on one of its qubits can't join it, and that gate's block is emitted after).
+Circuit fuse_commuting(const Circuit& c, int K) {
+  struct Block {
+    std::vector<int> qs;          // sorted
+    std::vector<std::size_t> ops; // indices into c.ops, ascending
+    bool open = false;
+  };
+  Circuit out;
+  out.num_qubits = c.num_qubits;
+  std::vector<Block> blocks;
+  std::vector<int> owner(static_cast<std::size_t>(c.num_qubits), -1);  // qubit -> open block, or -1
+
+  auto close = [&](int b) {
+    Block& blk = blocks[static_cast<std::size_t>(b)];
+    std::vector<const Op*> ops;
+    for (std::size_t i : blk.ops) ops.push_back(&c.ops[i]);
+    out.ops.push_back(emit_block(ops, blk.qs));
+    for (int q : blk.qs) owner[static_cast<std::size_t>(q)] = -1;
+    blk.open = false;
+  };
+
+  for (std::size_t i = 0; i < c.ops.size(); ++i) {
+    const std::vector<int> oq = qubits_of(c.ops[i]);
+    std::vector<int> touched;
+    for (int q : oq) {
+      const int b = owner[static_cast<std::size_t>(q)];
+      if (b >= 0 && std::find(touched.begin(), touched.end(), b) == touched.end()) touched.push_back(b);
+    }
+
+    if (static_cast<int>(oq.size()) > K) {  // too wide to fuse: flush what it depends on, pass it through
+      for (int b : touched) close(b);
+      out.ops.push_back(c.ops[i]);
+      continue;
+    }
+
+    // Keep the biggest touched blocks that still fit together with this gate; close the rest (they
+    // share a qubit with the gate, so they have to come before it anyway).
+    std::sort(touched.begin(), touched.end(), [&](int a, int b) {
+      return blocks[static_cast<std::size_t>(a)].qs.size() > blocks[static_cast<std::size_t>(b)].qs.size();
+    });
+    std::vector<int> keep, qs = oq;
+    for (int b : touched) {
+      std::vector<int> m = merged(qs, blocks[static_cast<std::size_t>(b)].qs);
+      if (static_cast<int>(m.size()) <= K) {
+        qs = std::move(m);
+        keep.push_back(b);
+      } else {
+        close(b);
+      }
+    }
+
+    Block nb;
+    nb.qs = qs;
+    nb.open = true;
+    for (int b : keep) {
+      Block& old = blocks[static_cast<std::size_t>(b)];
+      nb.ops.insert(nb.ops.end(), old.ops.begin(), old.ops.end());
+      old.open = false;
+    }
+    std::sort(nb.ops.begin(), nb.ops.end());  // kept blocks are disjoint: any order is valid; keep input order
+    nb.ops.push_back(i);
+    blocks.push_back(std::move(nb));
+    for (int q : qs) owner[static_cast<std::size_t>(q)] = static_cast<int>(blocks.size() - 1);
+  }
+
+  // Remaining open blocks are pairwise disjoint; emit them in order of their first gate.
+  std::vector<int> rest;
+  for (std::size_t b = 0; b < blocks.size(); ++b)
+    if (blocks[b].open) rest.push_back(static_cast<int>(b));
+  std::sort(rest.begin(), rest.end(), [&](int a, int b) {
+    return blocks[static_cast<std::size_t>(a)].ops.front() < blocks[static_cast<std::size_t>(b)].ops.front();
+  });
+  for (int b : rest) close(b);
+  return out;
+}
+
+}  // namespace
+
+double pass_cost(const Circuit& c) {
+  double cost = 0;
+  for (const Op& op : c.ops) cost += 1.0 / static_cast<double>(std::uint64_t{1} << op.controls.size());
+  return cost;
+}
+
+Circuit fuse_circuit(const Circuit& c, int max_qubits, FusionStrategy strategy) {
   if (max_qubits < 1 || max_qubits > 6)
     throw std::invalid_argument("fuse_circuit: max_qubits must be 1..6, got " + std::to_string(max_qubits));
+  if (strategy == FusionStrategy::Best) {
+    Circuit a = fuse_circuit(c, max_qubits, FusionStrategy::Commuting);
+    Circuit b = fuse_circuit(c, max_qubits, FusionStrategy::InOrder);
+    return pass_cost(b) < pass_cost(a) ? b : a;
+  }
+  if (strategy == FusionStrategy::Commuting) return fuse_commuting(c, max_qubits);
 
+  // In-order greedy (M3.2): one open block; close it as soon as the next gate doesn't fit.
   Circuit out;
   out.num_qubits = c.num_qubits;
   std::vector<const Op*> block;

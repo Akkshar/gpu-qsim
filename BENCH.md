@@ -27,7 +27,69 @@ CMake 4.4.2, Visual Studio generator, sm_86. **On battery, Windows "Silent" prof
 
 **Superseded** by the on-AC run above (358 GB/s).
 
+## M3.4: commutation-aware fusion — qsim now ahead of Aer on 3 of 4 circuits
+
+**Why:** M4 showed Aer (cuStateVec backend + its own fusion) 2.5× faster on the layered circuit.
+Kernels were on par with cuStateVec, so the gap was the fusion pass: ours was in-order greedy.
+
+**Commuting strategy** (`src/fusion/fuse.cpp`, `fuse_commuting`): keep several open blocks on
+pairwise-disjoint qubit sets. A gate joins (merging if needed) the open blocks it touches while the
+union stays ≤ K; otherwise it keeps the biggest touched blocks that fit and closes (emits) the rest,
+which it has to follow anyway. Gates on disjoint qubits commute, so this is exact. Invariant: for
+every qubit, blocks touching it are emitted in input order.
+
+**It isn't always better.** Fused op counts at 28 q (deterministic, no timing):
+
+| circuit | K=3 in-order / commuting | K=4 | K=5 |
+|---|---|---|---|
+| layered | 450 / **136** | 275 / **130** | 245 / **67** |
+| random | 145 / **112** | 104 / **74** | 81 / **58** |
+| QFT | 209 / 209 | **140** / 147 | **103** / 116 |
+| QAOA | 56 / **53** | **40** / 44 | **31** / 37 |
+
+Keep-the-biggest-blocks loses on the QFT/QAOA ladders. So the default is **Best**: run both (host
+side, milliseconds) and keep the lower `pass_cost` (1 per op, 1/2^c for an op with c controls).
+`qsim_cli --fuse-mode best|commute|inorder`.
+
+**Correctness:** new [fusion] cases (all three strategies on random circuits K = 1..6; wide layered
+circuits with long-range gates; commuting skips past disjoint gates but never past shared-qubit ones;
+Best == min cost). 62/62 cases. qiskit_check: 1150 + 700 circuits with commuting/best fusion, CPU and
+GPU, f32/f64, K = 1..6, all pass (worst 2.6e-15 f64, 1.5e-7 f32).
+
+**A/B, in-order vs best, interleaved, 28 q f32:** layered −60% (K=3) / −54% / −68% (K=5);
+random −15% / −25% / −40%; QFT and QAOA within noise (best picks in-order there, so both sides run
+the identical circuit). Noise calibration: QAOA K=4 showed +12.9% between two *identical* fused
+circuits, so differences under ~10% in a 3-round A/B aren't meaningful.
+
+> **Contaminated run, discarded (2026-11-20 18:42):** the first A/B of this change ran while a game
+> (Ghost of Tsushima) was using the GPU: 99% utilisation, 4.3 GB, 86 °C, SM at 945 MHz. Timings were
+> 2–36× off (QFT K=3: 91 s instead of 2.5 s). Only the deterministic op counts from that run are
+> used. Benchmark scripts' wrappers now log GPU memory/temperature and check for the game process.
+
+### M4 re-run with best-of-both fusion, K = 5 (2026-11-21)
+qsim-fused, Aer GPU + cuStateVec, and raw cuStateVec re-run in interleaved rounds (3); other rows
+are from the 2026-11-20 run. Session check: raw cuStateVec within 3% of the day before on every
+circuit (QFT-28 2850 vs 2758 ms, layered-28 8631 vs 8382), so the two sessions are comparable.
+
+| 28 q, f32 (ms) | **qsim fused** (was in-order K=4) | Aer GPU + cuStateVec | cuStateVec | qsim vs Aer | qsim vs cuStateVec |
+|---|---|---|---|---|---|
+| QFT | **1,415** (1,711) | 1,598 | 2,850 | **1.13× faster** (was 0.91×) | **2.0× faster** |
+| Layered random | **1,301** (4,529) | 1,848 | 8,631 | **1.42× faster** (was 0.39×) | **6.6× faster** |
+| QAOA ring | 503 (502) | 456 | 2,447 | 0.91× (Aer 10% faster) | **4.9× faster** |
+| GHZ | **92** (111) | 279 | 186 | **3.0× faster** | **2.0× faster** |
+
+At 24 and 26 qubits qsim-fused is faster than Aer on all four circuits (layered-24: 51 vs 106 ms).
+QFT's gain is from K=5 rather than commuting (Best picks in-order there); layered's is from commuting.
+Updated charts above in M4 (`docs/img`), full tables in [docs/m4_results.md](docs/m4_results.md).
+
+**Still open:** QAOA-28 (Aer 10% ahead), and small GHZ (16–20 q), where K=5 dense blocks on the lowest
+qubits cost more than per-gate application (1.6 vs 0.6 ms at 20 q). A cost model that knows the
+kernel's speed per block shape (from `--profile-ops` data) instead of counting passes would address both.
+
 ## M4: benchmarks vs Qiskit Aer and NVIDIA cuStateVec
+
+> Results in this section are the original 2026-11-20 run (in-order fusion, K=4). The charts and
+> `docs/m4_results.md` now show the M3.4 re-run; see the section above.
 
 ![time vs qubits](docs/img/m4_scaling.png)
 ![time at 28 qubits](docs/img/m4_at28.png)

@@ -9,7 +9,7 @@ after each circuit. Plot with bench/m4_plot.py.
 
 Backends (all single precision unless --precision f64):
   qsim             this project, GPU, no fusion                      (Windows, native)
-  qsim-fused       this project, GPU, --fuse 4                       (Windows, native)
+  qsim-fused       this project, GPU, --fuse 5 (best-of-both fusion)  (Windows, native)
   custatevec       NVIDIA cuStateVec, one custatevecApplyMatrix per gate, no fusion   (WSL)
   aer-gpu-cusv     Qiskit Aer GPU with cuStateVec_enable + Aer's default fusion: Aer's fastest
                    GPU configuration on this machine (WSL)
@@ -67,7 +67,7 @@ def main() -> int:
     ap.add_argument("--backends", default=",".join(ALL_BACKENDS))
     ap.add_argument("--rounds", type=int, default=3)
     ap.add_argument("--precision", choices=["f32", "f64"], default="f32")
-    ap.add_argument("--fuse", type=int, default=4, help="block size for qsim-fused")
+    ap.add_argument("--fuse", type=int, default=5, help="block size for qsim-fused (best-of-both fusion)")
     ap.add_argument("--aer-cpu-max", type=int, default=26, help="largest n for aer-cpu (slow)")
     ap.add_argument("--aer-gpu-max", type=int, default=26, help="largest n for aer-gpu native kernels (slow)")
     ap.add_argument("--out", default=str(ROOT / "bench" / "results" / "m4.json"))
@@ -76,7 +76,7 @@ def main() -> int:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     results = json.loads(out.read_text()) if out.exists() else {"runs": []}
-    results["meta"] = {"precision": args.precision, "fuse": args.fuse, "rounds": args.rounds,
+    results["meta"] = {"precision": args.precision, "fuse": args.fuse, "fuse_mode": "best", "rounds": args.rounds,
                        "date": time.strftime("%Y-%m-%d %H:%M")}
     backends = args.backends.split(",")
 
@@ -99,7 +99,9 @@ def main() -> int:
                         times[b].append(ms)
                     except subprocess.CalledProcessError as e:
                         print(f"  {fam}{n} {b} FAILED: {e.stderr.strip()[-300:]}", flush=True)
-            results["runs"] = [r for r in results["runs"] if not (r["family"] == fam and r["qubits"] == n)]
+            # Replace only the backends re-run now; keep the others' earlier results for this circuit.
+            results["runs"] = [r for r in results["runs"]
+                               if not (r["family"] == fam and r["qubits"] == n and r["backend"] in times)]
             for b, ts in times.items():
                 if ts:
                     results["runs"].append({"family": fam, "qubits": n, "gates": len(lines) - 1, "backend": b,

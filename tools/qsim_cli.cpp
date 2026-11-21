@@ -142,7 +142,8 @@ int usage() {
   std::fprintf(stderr,
                "usage: qsim_cli <circuit.qc> [--gpu] [--f32 | --f64] [--fuse K] [--kernel auto|shuffle|direct]\n"
                "                [--reps N] [--dump out.bin] [--profile-ops]\n"
-               "  --fuse K   merge consecutive gates into dense blocks of at most K qubits (1..6)\n"
+               "  --fuse K   merge gates into dense blocks of at most K qubits (1..6)\n"
+               "  --fuse-mode best|commute|inorder   best of both (default), commuting blocks, or in-order\n"
                "  --kernel   GPU kernel for 2-5 target ops: warp-shuffle or direct (default auto)\n"
                "  --profile-ops  also time every op individually, grouped by shape\n");
   return 2;
@@ -155,6 +156,7 @@ int main(int argc, char** argv) {
   const char* dump = nullptr;
   bool f32 = false, gpu = false, prof = false;
   int reps = 1, fuse = 0;
+  qsim::FusionStrategy fuse_mode = qsim::FusionStrategy::Best;
   qsim::MultiTargetKernel mtk = qsim::MultiTargetKernel::Auto;
   for (int i = 1; i < argc; ++i) {
     if (!std::strcmp(argv[i], "--kernel") && i + 1 < argc) {
@@ -170,6 +172,13 @@ int main(int argc, char** argv) {
     else if (!std::strcmp(argv[i], "--gpu")) gpu = true;
     else if (!std::strcmp(argv[i], "--profile-ops")) prof = true;
     else if (!std::strcmp(argv[i], "--fuse") && i + 1 < argc) fuse = std::atoi(argv[++i]);
+    else if (!std::strcmp(argv[i], "--fuse-mode") && i + 1 < argc) {
+      const char* v = argv[++i];
+      if (!std::strcmp(v, "best")) fuse_mode = qsim::FusionStrategy::Best;
+      else if (!std::strcmp(v, "commute")) fuse_mode = qsim::FusionStrategy::Commuting;
+      else if (!std::strcmp(v, "inorder")) fuse_mode = qsim::FusionStrategy::InOrder;
+      else return usage();
+    }
     else if (!std::strcmp(argv[i], "--reps") && i + 1 < argc) reps = std::max(1, std::atoi(argv[++i]));
     else if (!std::strcmp(argv[i], "--dump") && i + 1 < argc) dump = argv[++i];
     else if (argv[i][0] == '-') return usage();
@@ -183,10 +192,14 @@ int main(int argc, char** argv) {
     const std::size_t input_ops = c.ops.size();
     if (fuse > 0) {
       const auto t0 = std::chrono::steady_clock::now();
-      c = qsim::fuse_circuit(c, fuse);
+      c = qsim::fuse_circuit(c, fuse, fuse_mode);
       const auto t1 = std::chrono::steady_clock::now();
-      std::printf("fusion %zu ops -> %zu ops (blocks of <= %d qubits), %.2f ms on the host\n", input_ops,
-                  c.ops.size(), fuse, std::chrono::duration<double, std::milli>(t1 - t0).count());
+      const char* mode = fuse_mode == qsim::FusionStrategy::Best        ? "best of both"
+                         : fuse_mode == qsim::FusionStrategy::Commuting ? "commute"
+                                                                         : "inorder";
+      std::printf("fusion %zu ops -> %zu ops (blocks of <= %d qubits, %s, cost %.1f passes), %.2f ms on the host\n",
+                  input_ops, c.ops.size(), fuse, mode, qsim::pass_cost(c),
+                  std::chrono::duration<double, std::milli>(t1 - t0).count());
     }
     if (gpu) {
       if (f32) run<qsim::CudaStateVector<float>>(c, reps, dump, true, input_ops, mtk, prof);

@@ -63,10 +63,11 @@ def random_mix(n: int, depth: int = 200, seed: int = 7) -> list[str]:
     return lines
 
 
-def run(path: Path, precision: str, reps: int, fuse: int, kernel: str = "auto") -> tuple[float, int]:
+def run(path: Path, precision: str, reps: int, fuse: int, kernel: str = "auto",
+        fuse_mode: str = "commute") -> tuple[float, int]:
     cmd = [str(EXE), str(path), "--gpu", f"--{precision}", "--reps", str(reps), "--kernel", kernel]
     if fuse:
-        cmd += ["--fuse", str(fuse)]
+        cmd += ["--fuse", str(fuse), "--fuse-mode", fuse_mode]
     out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
     ms = float(re.search(r"time\s+([\d.]+) ms", out).group(1))
     m = re.search(r"fusion \d+ ops -> (\d+) ops", out)
@@ -83,14 +84,20 @@ def main() -> int:
     ap.add_argument("--circuits", default="qft,layered,ghz,random")
     ap.add_argument("--layers", type=int, default=20)
     ap.add_argument("--kernel", choices=["auto", "shuffle", "direct"], default="auto")
-    ap.add_argument("--ab", default=None, metavar="KERNEL_A,KERNEL_B",
-                    help="A/B mode: alternate two kernel settings run by run (cancels thermal drift)")
+    ap.add_argument("--fuse-mode", choices=["commute", "inorder"], default="commute")
+    ap.add_argument("--ab", default=None, metavar="A,B",
+                    help="A/B mode: alternate two settings run by run (cancels thermal drift); kernels by "
+                         "default, fusion strategies with --ab-what fuse-mode (e.g. --ab inorder,commute)")
+    ap.add_argument("--ab-what", choices=["kernel", "fuse-mode"], default="kernel")
     ap.add_argument("--rounds", type=int, default=5, help="A/B mode: alternating runs per setting")
     args = ap.parse_args()
 
     n = args.qubits
+    sys.path.insert(0, str(ROOT / "bench"))
+    import circuits as shared  # bench/circuits.py
+
     makers = {"qft": lambda: qft(n), "layered": lambda: layered(n, args.layers), "ghz": lambda: ghz(n),
-              "random": lambda: random_mix(n)}
+              "random": lambda: random_mix(n), "qaoa": lambda: shared.qaoa(n)}
     fuses = [int(x) for x in args.fuse.split(",")]
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -98,23 +105,28 @@ def main() -> int:
         # This laptop's GPU drifts ~10% between back-to-back runs as it heats up, which is as big as
         # the effects being compared. Alternating A, B, A, B, ... exposes both to the same conditions.
         ka, kb = args.ab.split(",")
-        print(f"{n} qubits, {args.precision}, GPU, A/B interleaved: A = {ka}, B = {kb}, "
+        def run_ab(path, k, setting):
+            if args.ab_what == "kernel":
+                return run(path, args.precision, 1, k, setting, args.fuse_mode)
+            return run(path, args.precision, 1, k, args.kernel, setting)
+
+        print(f"{n} qubits, {args.precision}, GPU, A/B interleaved ({args.ab_what}): A = {ka}, B = {kb}, "
               f"median of {args.rounds} alternating runs each")
         print()
-        print(f"| circuit | K | ops | A: {ka} ms | B: {kb} ms | B vs A |")
-        print("|---|---|---|---|---|---|")
+        print(f"| circuit | K | A ops | B ops | A: {ka} ms | B: {kb} ms | B vs A |")
+        print("|---|---|---|---|---|---|---|")
         for name in args.circuits.split(","):
             path = OUT / f"{name}{n}.qc"
             path.write_text("\n".join(makers[name]()) + "\n")
             for k in fuses:
-                ta, tb, ops = [], [], 0
+                ta, tb, opa, opb = [], [], 0, 0
                 for _ in range(args.rounds):
-                    ms, ops = run(path, args.precision, 1, k, ka)
+                    ms, opa = run_ab(path, k, ka)
                     ta.append(ms)
-                    ms, _ = run(path, args.precision, 1, k, kb)
+                    ms, opb = run_ab(path, k, kb)
                     tb.append(ms)
                 ma, mb = sorted(ta)[len(ta) // 2], sorted(tb)[len(tb) // 2]
-                print(f"| {name} | {k or '-'} | {ops} | {ma:.0f} | {mb:.0f} | {100 * (mb - ma) / ma:+.1f}% |",
+                print(f"| {name} | {k or '-'} | {opa} | {opb} | {ma:.0f} | {mb:.0f} | {100 * (mb - ma) / ma:+.1f}% |",
                       flush=True)
         return 0
 
@@ -130,7 +142,7 @@ def main() -> int:
         path.write_text("\n".join(lines) + "\n")
         cells, base, best = [], None, None
         for k in fuses:
-            ms, ops = run(path, args.precision, args.reps, k, args.kernel)
+            ms, ops = run(path, args.precision, args.reps, k, args.kernel, args.fuse_mode)
             if k == 0:
                 base = ms
                 cells.append(f"{ms:.0f}")
